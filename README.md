@@ -1,3 +1,6 @@
+#streamlit link
+https://case-2-zz8zf656wmlzfsxm4mxyed.streamlit.app/
+
 # case-2
 vergelijken van aandelen. 
 
