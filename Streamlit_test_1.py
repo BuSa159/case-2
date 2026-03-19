@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import seaborn as sns
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlibpyplot as plt
 
 #KEYS en URL
 API_KEY_1 = "046SOW0RCBGPECLG"
@@ -22,7 +22,7 @@ def fetch_data(url, api_key):
     return response.json()
 
 
-# Cache data defineren
+# Cache data definiëren
 data = fetch_data(API_URL, API_KEY_1)
 
 # Zet om naar DataFrame en gebruik .T om datums naar de rijen te verplaatsen
