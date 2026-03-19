@@ -92,7 +92,15 @@ if st.button("Reload data"):
     st.session_state.clear()
     st.rerun()
 
-#Figuren
+#Figuren(voorbeeld)
+if not st.session_state.merged_df.empty:
+    plt.figure(figsize=(10,5))
+    sns.lineplot(data=st.session_state.merged_df, x="date", y="4. close", hue="ticker")
+    plt.title("Slotkoers per ticker")
+    plt.xlabel("Datum")
+    plt.ylabel("Slotkoers")
+    plt.xticks(rotation=45)
+    st.pyplot(plt)
 
 
 #Indeling
