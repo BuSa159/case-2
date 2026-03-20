@@ -96,7 +96,15 @@ if "earnings_data" not in st.session_state:
 if "finnhub_profile" not in st.session_state:
     st.session_state.finnhub_profile = {t: load_finnhub_profile(t, FINNHUB_KEY) for t in tickers}
  
- 
+
+
+  # debug voor ruewe earnings API response
+# --- DEBUG: toon ruwe earnings API response ---
+for t in tickers:
+    url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={t}&apikey={ALPHA_KEY}"
+    r = requests.get(url)
+    st.write(f"**Earnings raw response {t}:**", r.json())
+
 # --- Samenvoegen dataframes ---
 dfs_overview = [df for df in st.session_state.overview_data.values() if not df.empty]
 dfs_finnhub = [df for df in st.session_state.finnhub_profile.values() if not df.empty]
