@@ -44,6 +44,8 @@ API: d6okk81r01qnu98if63gd6okk81r01qnu98if640
 financial modeling prep: 
 ?apikey=43a39GW86qFEdUpYJ3crtC8CCpa88yrz at the end of every request.
 
+URL: https://financialmodelingprep.com/stable/search-symbol?query=AAPL&apikey=43a39GW86qFEdUpYJ3crtC8CCpa88yrz
+
 Ideeën: 
 Data verzameling: 
   1. twee API's gebruikt om data te joinen.
