@@ -139,7 +139,7 @@ if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
 # --- Visualisaties ---
-st.title("💹 Stock & Company Dashboard")
+st.title("💹 Stock & Company Dashboar")
 
 # Slotkoers per ticker
 with st.container():
