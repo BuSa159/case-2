@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 st.set_page_config(layout="wide")
 
-# --- API Keys (veilig via .env) ---
+# --- API Keys ---
 ALPHA_KEY = "046SOW0RCBGPECLG"
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 
@@ -138,6 +138,7 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
+# --- Visualisaties Testen ---
 
 # --- Visualisaties ---
 st.title("💹 Stock & Company Dashboard")
@@ -145,100 +146,21 @@ st.title("💹 Stock & Company Dashboard")
 # Slotkoers per ticker
 if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
     st.subheader("Slotkoers per ticker")
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
-    ax.tick_params(axis='x', rotation=45)
+    plt.xticks(rotation=45)
     st.pyplot(fig)
-    plt.close(fig)
 
 # Marktkapitalisatie
 if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
     st.subheader("Marktkapitalisatie per ticker")
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
     st.pyplot(fig)
-    plt.close(fig)
 
 # Quarterly Earnings
 if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
     st.subheader("Quarterly EPS per ticker")
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
-    ax.tick_params(axis='x', rotation=45)
     st.pyplot(fig)
-    plt.close(fig)
-
-
-
-
-        
-            # toegevoegd
-02_grafieken.py
-
-import yfinance as yf
- 
-st.set_page_config(page_title="Investment Valuator", layout="wide")
- 
-st.title("📈 Aandelen Waarderings Model")
-st.sidebar.header("Variabelen")
- 
-# 1. Ticker input
-ticker_symbol = st.sidebar.text_input("Voer Ticker in (bijv. ASML.AS, AAPL, MSFT):", value="AAPL")
- 
-# Ophalen van basisdata
-@st.cache_data
-def get_stock_data(ticker):
-    stock = yf.Ticker(ticker)
-    info = stock.info
-    eps = info.get('trailingEps', 0)
-    price = info.get('currentPrice', 0)
-    name = info.get('longName', 'Onbekend')
-    return eps, price, name
- 
-eps, current_price, company_name = get_stock_data(ticker_symbol)
- 
-# 2. Sliders
-st.sidebar.subheader("Model Parameters")
-payout_ratio = st.sidebar.slider("Payout Ratio (%)", 0, 100, 30) / 100
-growth_rate = st.sidebar.slider("Groei Verwachting (%) - Eerste 5 jaar", 0, 50, 10) / 100
-discount_rate = st.sidebar.slider("Discount Value / WACC (%)", 5, 20, 10) / 100
-terminal_multiple = st.sidebar.slider("Terminal Multiple (P/E)", 5, 50, 15)
- 
-# --- Berekening ---
-def calculate_valuation(eps, growth, discount, payout, terminal_mult):
-    projections = []
-    current_eps = eps
- 
-    for year in range(1, 6):
-        current_eps *= (1 + growth)
-        dividend = current_eps * payout
-        pv_dividend = dividend / ((1 + discount) ** year)
-        projections.append(pv_dividend)
- 
-    terminal_value = current_eps * terminal_mult
-    pv_terminal_value = terminal_value / ((1 + discount) ** 5)
- 
-    return sum(projections) + pv_terminal_value
- 
-intrinsic_value = calculate_valuation(eps, growth_rate, discount_rate, payout_ratio, terminal_multiple)
- 
-# --- Visualisatie ---
-col1, col2, col3 = st.columns(3)
- 
-with col1:
-    st.metric("Bedrijf", company_name)
-with col2:
-    st.metric("Huidige Koers", f"${current_price:.2f}")
-with col3:
-    delta = ((intrinsic_value - current_price) / current_price) * 100 if current_price else 0
-    st.metric("Intrinsieke Waarde", f"${intrinsic_value:.2f}", f"{delta:.2f}%")
- 
-st.divider()
-st.subheader("Analyse")
-if intrinsic_value > current_price:
-    st.success(f"Op basis van jouw parameters is {company_name} momenteel **ondergewaardeerd**.")
-else:
-    st.error(f"Op basis van jouw parameters is {company_name} momenteel **overgewaardeerd**.")
- 
-st.info(f"**Berekening:** Dit model gebruikt een 5-jaars groeimodel met een Terminal Multiple van {terminal_multiple}x de winst in jaar 5, verdisconteerd tegen {discount_rate * 100}%.")
- 
