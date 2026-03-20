@@ -138,29 +138,32 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
-# --- Visualisaties Testen ---
-
 # --- Visualisaties ---
 st.title("💹 Stock & Company Dashboard")
 
 # Slotkoers per ticker
-if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
-    st.subheader("Slotkoers per ticker")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
+with st.container():
+    if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
+        st.subheader("Slotkoers per ticker")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
 
+st.write("Marktkapitalisatie")
 # Marktkapitalisatie
-if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
-    st.subheader("Marktkapitalisatie per ticker")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
-    st.pyplot(fig)
+with st.container():
+    if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
+        st.subheader("Marktkapitalisatie per ticker")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
+        st.pyplot(fig)
 
+st.write("Quarterly Earnings")
 # Quarterly Earnings
-if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
-    st.subheader("Quarterly EPS per ticker")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
-    st.pyplot(fig)
+with st.container():
+    if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
+        st.subheader("Quarterly EPS per ticker")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
+        st.pyplot(fig)
