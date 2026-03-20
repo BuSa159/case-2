@@ -41,6 +41,8 @@ Here is your API key: 046SOW0RCBGPECLG.
 Finnhub.io 
 API: d6okk81r01qnu98if63gd6okk81r01qnu98if640 
 
+financial modeling prep: 
+?apikey=43a39GW86qFEdUpYJ3crtC8CCpa88yrz at the end of every request.
 
 Ideeën: 
 Data verzameling: 
