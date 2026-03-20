@@ -7,52 +7,53 @@ import seaborn as sns
 st.set_page_config(layout="wide", page_title="Stock Dashboard")
 
 # --- API Keys ---
-ALPHA_KEY = "046SOW0RCBGPECLG"
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
 
 # --- Tickers ---
-tickers = ["XOM"]
+tickers = ["XOM", "BP"]
 # Voor toekomst: ["XOM", "CVX", "SHEL", "TTE", "COP", "BP", "ENB", "EQNR", "SO", "E"]
 
-# --- Functies voor Alpha Vantage ---
+
+# --- Functies voor FMP ---
 @st.cache_data
-def load_alpha_daily(ticker, api_key):
+def load_fmp_daily(ticker, api_key):
     try:
-        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={api_key}"
+        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={api_key}"
         r = requests.get(url)
         data = r.json()
-        if "Time Series (Daily)" in data:
-            df = pd.DataFrame(data["Time Series (Daily)"]).T.astype(float)
-            df.index = pd.to_datetime(df.index)
-            df.reset_index(inplace=True)
-            df.rename(columns={"index": "date"}, inplace=True)
+        if "historical" in data:
+            df = pd.DataFrame(data["historical"])
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.rename(columns={"close": "4. close"})
             df["ticker"] = ticker
-            return df
+            return df[["date", "4. close", "ticker"]]
     except Exception as e:
         st.error(f"Fout bij laden dagdata voor {ticker}: {e}")
     return pd.DataFrame()
 
 
 @st.cache_data
-def load_alpha_overview(ticker, api_key):
+def load_fmp_overview(ticker, api_key):
     try:
-        url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={api_key}"
+        url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={api_key}"
         r = requests.get(url)
         data = r.json()
-        if "Note" in data or "Information" in data:
-            st.warning(f"API limiet bereikt voor {ticker}: {data.get('Note') or data.get('Information')}")
-            return pd.DataFrame()
-        if data and "Symbol" in data:
-            df = pd.DataFrame([data])
+        if isinstance(data, list) and len(data) > 0:
+            df = pd.DataFrame(data)
             df["ticker"] = ticker
+            df = df.rename(columns={
+                "companyName": "Name",
+                "mktCap": "MarketCapitalization",
+                "sector": "Sector",
+                "sharesOutstanding": "SharesOutstanding"
+            })
             return df
     except Exception as e:
         st.error(f"Fout bij laden overzicht voor {ticker}: {e}")
     return pd.DataFrame()
 
 
-# --- Functie voor FMP (earnings) ---
 @st.cache_data
 def load_fmp_earnings(ticker, api_key):
     try:
@@ -88,10 +89,10 @@ def load_finnhub_profile(ticker, api_key):
 
 # --- Laden in session_state ---
 if "daily_data" not in st.session_state:
-    st.session_state.daily_data = {t: load_alpha_daily(t, ALPHA_KEY) for t in tickers}
+    st.session_state.daily_data = {t: load_fmp_daily(t, FMP_KEY) for t in tickers}
 
 if "overview_data" not in st.session_state:
-    st.session_state.overview_data = {t: load_alpha_overview(t, ALPHA_KEY) for t in tickers}
+    st.session_state.overview_data = {t: load_fmp_overview(t, FMP_KEY) for t in tickers}
 
 if "earnings_data" not in st.session_state:
     st.session_state.earnings_data = {t: load_fmp_earnings(t, FMP_KEY) for t in tickers}
@@ -144,7 +145,7 @@ if "merged_profile" in st.session_state and not st.session_state.merged_profile.
         market_cap = float(profile.get("MarketCapitalization", 0))
         st.metric("Marktkapitalisatie", f"${market_cap / 1e9:.1f}B")
     with m3:
-        st.metric("Sector", profile.get("sector", profile.get("Sector", "—")))
+        st.metric("Sector", profile.get("Sector", "—"))
     with m4:
         shares = float(profile.get("SharesOutstanding", 0))
         st.metric("Aandelen uitstaand", f"{shares / 1e6:.0f}M")
