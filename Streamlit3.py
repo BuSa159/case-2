@@ -10,17 +10,13 @@ st.set_page_config(layout="wide", page_title="Stock Dashboard")
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
 
-# --- Tickers ---
-tickers = ["XOM", "BP"]
-# Voor toekomst: ["XOM", "CVX", "SHEL", "TTE", "COP", "BP", "ENB", "EQNR", "SO", "E"]
+# --- DATA FUNCTIES ---
 
-
-# --- Functies voor FMP ---
 @st.cache_data
 def load_fmp_daily(ticker, api_key):
     try:
         url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={api_key}"
-        r = requests.get(url)
+        r = requests.get(url, timeout=10)
         data = r.json()
         if "historical" in data:
             df = pd.DataFrame(data["historical"])
@@ -32,33 +28,33 @@ def load_fmp_daily(ticker, api_key):
         st.error(f"Fout bij laden dagdata voor {ticker}: {e}")
     return pd.DataFrame()
 
-
 @st.cache_data
 def load_fmp_overview(ticker, api_key):
     try:
         url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={api_key}"
-        r = requests.get(url)
+        r = requests.get(url, timeout=10)
         data = r.json()
         if isinstance(data, list) and len(data) > 0:
             df = pd.DataFrame(data)
             df["ticker"] = ticker
-            df = df.rename(columns={
+            # Mapping om consistentie te garanderen
+            cols_to_rename = {
                 "companyName": "Name",
                 "mktCap": "MarketCapitalization",
                 "sector": "Sector",
                 "sharesOutstanding": "SharesOutstanding"
-            })
+            }
+            df = df.rename(columns=cols_to_rename)
             return df
     except Exception as e:
         st.error(f"Fout bij laden overzicht voor {ticker}: {e}")
     return pd.DataFrame()
 
-
 @st.cache_data
 def load_fmp_earnings(ticker, api_key):
     try:
         url = f"https://financialmodelingprep.com/api/v3/income-statement/{ticker}?period=quarter&apikey={api_key}"
-        r = requests.get(url)
+        r = requests.get(url, timeout=10)
         data = r.json()
         if isinstance(data, list) and len(data) > 0:
             df = pd.DataFrame(data)
@@ -70,15 +66,13 @@ def load_fmp_earnings(ticker, api_key):
         st.error(f"Fout bij laden FMP earnings voor {ticker}: {e}")
     return pd.DataFrame()
 
-
-# --- Functie voor Finnhub ---
 @st.cache_data
 def load_finnhub_profile(ticker, api_key):
     try:
         url = f"https://finnhub.io/api/v1/stock/profile2?symbol={ticker}&token={api_key}"
-        r = requests.get(url)
+        r = requests.get(url, timeout=10)
         data = r.json()
-        if data:
+        if data and "name" in data: # Check of data nuttig is
             df = pd.DataFrame([data])
             df["ticker"] = ticker
             return df
@@ -86,114 +80,95 @@ def load_finnhub_profile(ticker, api_key):
         st.error(f"Fout bij laden Finnhub profiel voor {ticker}: {e}")
     return pd.DataFrame()
 
+# =====================
+# LOGIC & STATE
+# =====================
 
-# --- Laden in session_state ---
-if "daily_data" not in st.session_state:
-    st.session_state.daily_data = {t: load_fmp_daily(t, FMP_KEY) for t in tickers}
+tickers = ["XOM", "BP", "CVX", "SHEL"] # Uitgebreid voor demo
 
-if "overview_data" not in st.session_state:
-    st.session_state.overview_data = {t: load_fmp_overview(t, FMP_KEY) for t in tickers}
+# Data ophalen (als het nog niet in session_state staat)
+for t in tickers:
+    if f"daily_{t}" not in st.session_state:
+        st.session_state[f"daily_{t}"] = load_fmp_daily(t, FMP_KEY)
+    if f"overview_{t}" not in st.session_state:
+        st.session_state[f"overview_{t}"] = load_fmp_overview(t, FMP_KEY)
+    if f"earnings_{t}" not in st.session_state:
+        st.session_state[f"earnings_{t}"] = load_fmp_earnings(t, FMP_KEY)
+    if f"finnhub_{t}" not in st.session_state:
+        st.session_state[f"finnhub_{t}"] = load_finnhub_profile(t, FINNHUB_KEY)
 
-if "earnings_data" not in st.session_state:
-    st.session_state.earnings_data = {t: load_fmp_earnings(t, FMP_KEY) for t in tickers}
-
-if "finnhub_profile" not in st.session_state:
-    st.session_state.finnhub_profile = {t: load_finnhub_profile(t, FINNHUB_KEY) for t in tickers}
-
-
-# --- Samenvoegen dataframes ---
-dfs_overview = [df for df in st.session_state.overview_data.values() if not df.empty]
-dfs_finnhub = [df for df in st.session_state.finnhub_profile.values() if not df.empty]
-
-if dfs_overview and dfs_finnhub:
-    df_overview_merged = pd.concat(dfs_overview, ignore_index=True)
-    df_finnhub_merged = pd.concat(dfs_finnhub, ignore_index=True)
-    st.session_state.merged_profile = (
-        df_overview_merged
-        .merge(df_finnhub_merged, on="ticker")
-    )
-
-dfs_daily = [df for df in st.session_state.daily_data.values() if not df.empty]
-if dfs_daily:
-    st.session_state.daily_merged = pd.concat(dfs_daily, ignore_index=True)
-
-dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.empty]
-if dfs_earnings:
-    st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
-
+# Samengevoegde dataframes maken voor visualisatie
+all_daily = pd.concat([st.session_state[f"daily_{t}"] for t in tickers], ignore_index=True)
+all_overviews = pd.concat([st.session_state[f"overview_{t}"] for t in tickers], ignore_index=True)
+all_earnings = pd.concat([st.session_state[f"earnings_{t}"] for t in tickers], ignore_index=True)
 
 # =====================
 # DASHBOARD LAYOUT
 # =====================
 
-st.title("💹 Stock & Company Dashboard")
-if st.button("🔄 Cache wissen & herladen"):
-    st.cache_data.clear()
-    for key in ["daily_data", "overview_data", "earnings_data", "finnhub_profile", "merged_profile", "daily_merged", "earnings_merged"]:
-        st.session_state.pop(key, None)
-    st.rerun()
+st.title("💹 Multi-Stock Analysis Dashboard")
+
+with st.sidebar:
+    st.header("Instellingen")
+    selected_ticker = st.selectbox("Selecteer ticker voor metrics:", tickers)
+    if st.button("🔄 Cache herladen"):
+        st.cache_data.clear()
+        st.rerun()
+
 st.divider()
 
-# --- BOVENSTE RIJ: Metric kaarten ---
-if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
-    profile = st.session_state.merged_profile.iloc[0]
+# --- BOVENSTE RIJ: Dynamische Metric kaarten ---
+if not all_overviews.empty:
+    # Filter de overview voor de geselecteerde ticker
+    ticker_data = all_overviews[all_overviews['ticker'] == selected_ticker]
+    
+    if not ticker_data.empty:
+        profile = ticker_data.iloc[0]
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric("Bedrijf", profile.get("Name", "—"))
+        with m2:
+            mcap = float(profile.get("MarketCapitalization", 0))
+            st.metric("Market Cap", f"${mcap / 1e9:.1f}B")
+        with m3:
+            st.metric("Sector", profile.get("Sector", "—"))
+        with m4:
+            shares = float(profile.get("SharesOutstanding", 0))
+            st.metric("Aandelen (M)", f"{shares / 1e6:.1f}M")
+    else:
+        st.warning(f"Geen detaildata voor {selected_ticker}")
 
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Bedrijf", profile.get("Name", "—"))
-    with m2:
-        market_cap = float(profile.get("MarketCapitalization", 0))
-        st.metric("Marktkapitalisatie", f"${market_cap / 1e9:.1f}B")
-    with m3:
-        st.metric("Sector", profile.get("Sector", "—"))
-    with m4:
-        shares = float(profile.get("SharesOutstanding", 0))
-        st.metric("Aandelen uitstaand", f"{shares / 1e6:.0f}M")
+st.divider()
 
-    st.divider()
-
-# --- GRAFIEK RIJ 1: Slotkoers + Marktkapitalisatie naast elkaar ---
+# --- GRAFIEK RIJ 1 ---
 col_left, col_right = st.columns(2)
 
 with col_left:
     st.subheader("Slotkoers over tijd")
-    if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
-        fig, ax = plt.subplots(figsize=(7, 4))
-        sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
-        ax.set_xlabel("Datum")
-        ax.set_ylabel("Koers ($)")
-        ax.tick_params(axis='x', rotation=45)
-        fig.tight_layout()
+    if not all_daily.empty:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.lineplot(data=all_daily, x="date", y="4. close", hue="ticker", ax=ax)
+        plt.xticks(rotation=45)
         st.pyplot(fig)
-        plt.close(fig)
     else:
         st.info("Geen koersdata beschikbaar.")
 
 with col_right:
-    st.subheader("Marktkapitalisatie per ticker")
-    if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
-        fig, ax = plt.subplots(figsize=(7, 4))
-        sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
-        ax.set_xlabel("Ticker")
-        ax.set_ylabel("Marktkapitalisatie ($)")
-        fig.tight_layout()
+    st.subheader("Marktkapitalisatie Vergelijking")
+    if not all_overviews.empty:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.barplot(data=all_overviews, x="ticker", y="MarketCapitalization", ax=ax, palette="viridis")
+        ax.set_ylabel("USD ($)")
         st.pyplot(fig)
-        plt.close(fig)
-    else:
-        st.info("Geen profieldata beschikbaar.")
 
+# --- GRAFIEK RIJ 2 ---
 st.divider()
-
-# --- GRAFIEK RIJ 2: Quarterly EPS breed over de volle breedte ---
 st.subheader("Quarterly EPS per ticker")
-if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
-    fig, ax = plt.subplots(figsize=(14, 4))
-    sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
-    ax.set_xlabel("Datum")
-    ax.set_ylabel("EPS ($)")
-    ax.tick_params(axis='x', rotation=45)
-    fig.tight_layout()
+if not all_earnings.empty:
+    fig, ax = plt.subplots(figsize=(15, 5))
+    sns.lineplot(data=all_earnings, x="reportedDate", y="reportedEPS", hue="ticker", marker="o", ax=ax)
+    plt.xticks(rotation=45)
     st.pyplot(fig)
-    plt.close(fig)
 else:
     st.info("Geen winst data beschikbaar.")
+
