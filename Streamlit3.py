@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import pandas as pd
@@ -7,8 +6,7 @@ import seaborn as sns
 import os
 from dotenv import load_dotenv
 
-
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Stock Dashboard")
 
 # --- API Keys ---
 ALPHA_KEY = "046SOW0RCBGPECLG"
@@ -138,32 +136,73 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
-# --- Visualisaties ---
-st.title("💹 Stock & Company Dashboar")
-
-# Slotkoers per ticker
-with st.container():
+# =====================
+# DASHBOARD LAYOUT
+# =====================
+ 
+st.title("💹 Stock & Company Dashboard")
+st.divider()
+ 
+# --- BOVENSTE RIJ: Metric kaarten ---
+if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
+    profile = st.session_state.merged_profile.iloc[0]
+ 
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Bedrijf", profile.get("Name", "—"))
+    with m2:
+        market_cap = float(profile.get("MarketCapitalization", 0))
+        st.metric("Marktkapitalisatie", f"${market_cap / 1e9:.1f}B")
+    with m3:
+        st.metric("Sector", profile.get("sector", profile.get("Sector", "—")))
+    with m4:
+        shares = float(profile.get("SharesOutstanding", 0))
+        st.metric("Aandelen uitstaand", f"{shares / 1e6:.0f}M")
+ 
+    st.divider()
+ 
+# --- GRAFIEK RIJ 1: Slotkoers + Marktkapitalisatie naast elkaar ---
+col_left, col_right = st.columns(2)
+ 
+with col_left:
+    st.subheader("Slotkoers over tijd")
     if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
-        st.subheader("Slotkoers per ticker")
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(7, 4))
         sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
-        plt.xticks(rotation=45)
+        ax.set_xlabel("Datum")
+        ax.set_ylabel("Koers ($)")
+        ax.tick_params(axis='x', rotation=45)
+        fig.tight_layout()
         st.pyplot(fig)
-
-st.write("Marktkapitalisatie")
-# Marktkapitalisatie
-with st.container():
+        plt.close(fig)
+    else:
+        st.info("Geen koersdata beschikbaar.")
+ 
+with col_right:
+    st.subheader("Marktkapitalisatie per ticker")
     if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
-        st.subheader("Marktkapitalisatie per ticker")
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(7, 4))
         sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
+        ax.set_xlabel("Ticker")
+        ax.set_ylabel("Marktkapitalisatie ($)")
+        fig.tight_layout()
         st.pyplot(fig)
-
-st.write("Quarterly Earnings")
-# Quarterly Earnings
-with st.container():
-    if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
-        st.subheader("Quarterly EPS per ticker")
-        fig, ax = plt.subplots(figsize=(8, 4))
-        sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
-        st.pyplot(fig)
+        plt.close(fig)
+    else:
+        st.info("Geen profieldata beschikbaar.")
+ 
+st.divider()
+ 
+# --- GRAFIEK RIJ 2: Quarterly EPS breed over de volle breedte ---
+st.subheader("Quarterly EPS per ticker")
+if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
+    fig, ax = plt.subplots(figsize=(14, 4))
+    sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
+    ax.set_xlabel("Datum")
+    ax.set_ylabel("EPS ($)")
+    ax.tick_params(axis='x', rotation=45)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+else:
+    st.info("Geen winst data beschikbaar.")
