@@ -135,14 +135,6 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
-# TIJDELIJK - voor debuggen
-if "overview_data" in st.session_state:
-    st.write("OVERVIEW kolommen:", st.session_state.overview_data.get("XOM", pd.DataFrame()).columns.tolist())
-    st.write("OVERVIEW data:", st.session_state.overview_data.get("XOM", pd.DataFrame()).head(1))
- 
-if "finnhub_profile" in st.session_state:
-    st.write("FINNHUB kolommen:", st.session_state.finnhub_profile.get("XOM", pd.DataFrame()).columns.tolist())
-
 #debug
 st.write("overview empty:", [df.empty for df in dfs_overview])
 st.write("shares empty:", [df.empty for df in dfs_shares])
