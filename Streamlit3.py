@@ -126,7 +126,7 @@ st.title("💹 Stock & Company Dashboard")
 if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
     st.subheader("Slotkoers per ticker")
     fig, ax = plt.subplots(figsize=(8, 4))
-    sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker")
+    sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker", ax=ax)
     plt.xticks(rotation=45)
     st.pyplot(fig)
 
@@ -134,12 +134,12 @@ if "daily_merged" in st.session_state and not st.session_state.daily_merged.empt
 if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
     st.subheader("Marktkapitalisatie per ticker")
     fig, ax = plt.subplots(figsize=(8, 4))
-    sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization")
+    sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization", ax=ax)
     st.pyplot(fig)
 
 # Quarterly Earnings
 if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
     st.subheader("Quarterly EPS per ticker")
     fig, ax = plt.subplots(figsize=(8, 4))
-    sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker")
+    sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker", ax=ax)
     st.pyplot(fig)
