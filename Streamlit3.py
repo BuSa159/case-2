@@ -143,6 +143,14 @@ if "overview_data" in st.session_state:
 if "finnhub_profile" in st.session_state:
     st.write("FINNHUB kolommen:", st.session_state.finnhub_profile.get("XOM", pd.DataFrame()).columns.tolist())
 
+#debug
+st.write("overview empty:", [df.empty for df in dfs_overview])
+st.write("shares empty:", [df.empty for df in dfs_shares])
+st.write("finnhub empty:", [df.empty for df in dfs_finnhub])
+st.write(df_overview_merged.columns)
+st.write(df_shares_merged.columns)
+st.write(df_finnhub_merged.columns)
+
 # =====================
 # DASHBOARD LAYOUT
 # =====================
