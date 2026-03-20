@@ -13,7 +13,7 @@ ALPHA_KEY = "046SOW0RCBGPECLG"
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 
 # --- Tickers ---
-tickers = ["XOM"]
+tickers = ["XOM", "BP"]
 # Voor toekomst: ["XOM", "CVX", "SHEL", "TTE", "COP", "BP", "ENB", "EQNR", "SO", "E"]
 
 # --- Functies voor Alpha Vantage ---
