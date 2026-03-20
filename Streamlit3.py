@@ -118,8 +118,15 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
+            #toegevoegd
 # --- Visualisaties ---
+case-2/
+    main_page.py      #eerste pagina
+    pages/
+        01_grafieken.py #tweede pagina
+        02_overzichten.py  # derde pagina
 
+main_page.py
 st.title("💹 Stock & Company Dashboard")
 
 # Slotkoers per ticker
@@ -143,3 +150,102 @@ if "earnings_merged" in st.session_state and not st.session_state.earnings_merge
     plt.figure(figsize=(10, 5))
     sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker")
     st.pyplot(plt)
+
+        #toegevoegd
+01_grafieken.py
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# data set voor grafieken
+# Eerste grafiek voor slotkoers over tijd
+fig, ax = plt.subplots()
+ax.plot(____.index, ____['close'])
+ax.set_xlabel('Tijd')
+ax.set_ylabel('Slotkoers')
+ax[0].set_title('Slotkoers over tijd')
+
+            # toegevoegd
+02_grafieken.py
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+
+# Pagina configuratie
+st.set_page_config(page_title="Investment Valuator", layout="wide")
+
+st.title("📈 Aandelen Waarderings Model")
+st.sidebar.header("Variabelen")
+
+# 1. Ticker Input
+ticker_symbol = st.sidebar.text_input("Voer Ticker in (bijv. ASML.AS, AAPL, MSFT):", value="AAPL")
+
+# Ophalen van basisdata
+@st.cache_data
+def get_stock_data(ticker):
+    stock = yf.Ticker(ticker)
+    info = stock.info
+    # Pak de meest recente winst per aandeel (EPS)
+    eps = info.get('trailingEps', 0)
+    price = info.get('currentPrice', 0)
+    name = info.get('longName', 'Onbekend')
+    return eps, price, name
+
+eps, current_price, company_name = get_stock_data(ticker_symbol)
+
+# 2. Sliders voor de variabelen
+st.sidebar.subheader("Model Parameters")
+payout_ratio = st.sidebar.slider("Payout Ratio (%)", 0, 100, 30) / 100
+growth_rate = st.sidebar.slider("Groei Verwachting (%) - Eerste 5 jaar", 0, 50, 10) / 100
+discount_rate = st.sidebar.slider("Discount Value / WACC (%)", 5, 20, 10) / 100
+terminal_multiple = st.sidebar.slider("Terminal Multiple (P/E)", 5, 50, 15)
+
+# --- BEREKENING ---
+def calculate_valuation(eps, growth, discount, payout, terminal_mult):
+    years = list(range(1, 6))
+    projections = []
+    current_eps = eps
+    
+    # Projectie voor de komende 5 jaar
+    for year in years:
+        current_eps *= (1 + growth)
+        dividend = current_eps * payout
+        # Present Value van het dividend
+        pv_dividend = dividend / ((1 + discount) ** year)
+        projections.append(pv_dividend)
+    
+    # Terminal Value berekening aan het einde van jaar 5
+    terminal_value = (current_eps * terminal_mult)
+    pv_terminal_value = terminal_value / ((1 + discount) ** 5)
+    
+    intrinsic_value = sum(projections) + pv_terminal_value
+    return intrinsic_value
+
+intrinsic_value = calculate_valuation(eps, growth_rate, discount_rate, payout_ratio, terminal_multiple)
+
+# --- VISUALISATIE ---
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Bedrijf", company_name)
+with col2:
+    st.metric("Huidige Koers", f"${current_price:.2f}")
+with col3:
+    delta = ((intrinsic_value - current_price) / current_price) * 100
+    st.metric("Intrinsieke Waarde", f"${intrinsic_value:.2f}", f"{delta:.2f}%")
+
+# Toelichting
+st.divider()
+st.subheader("Analyse")
+if intrinsic_value > current_price:
+    st.success(f"Op basis van jouw parameters is {company_name} momenteel **ondergewaardeerd**.")
+else:
+    st.error(f"Op basis van jouw parameters is {company_name} momenteel **overgewaardeerd**.")
+
+st.info(f"**Berekening:** Dit model gebruikt een 5-jaars groeimodel met een Terminal Multiple van {terminal_multiple}x de winst in jaar 5, verdisconteerd tegen {discount_rate*100}%.")
+
+
+
+
