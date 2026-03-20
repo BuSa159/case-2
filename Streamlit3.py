@@ -8,8 +8,8 @@ import seaborn as sns
 st.set_page_config(layout="wide")
 
 # --- API Keys ---
-ALPHA_KEY = "JE_ALPHA_KEY_HIER"
-FINNHUB_KEY = "JE_FINNHUB_KEY_HIER"
+ALPHA_KEY = "046SOW0RCBGPECLG"
+FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 
 # --- Jouw tickers ---
 tickers = ["XOM"]
@@ -118,28 +118,28 @@ dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.e
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
 
-# --- Visualisaties ---
+# --- Visualisaties Testen ---
 
 st.title("💹 Stock & Company Dashboard")
 
 # Slotkoers per ticker
 if "daily_merged" in st.session_state and not st.session_state.daily_merged.empty:
     st.subheader("Slotkoers per ticker")
-    plt.figure(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(data=st.session_state.daily_merged, x="date", y="4. close", hue="ticker")
     plt.xticks(rotation=45)
-    st.pyplot(plt)
+    st.pyplot(fig)
 
 # Marktkapitalisatie + Shares
 if "merged_profile" in st.session_state and not st.session_state.merged_profile.empty:
     st.subheader("Marktkapitalisatie per ticker")
-    plt.figure(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.barplot(data=st.session_state.merged_profile, x="ticker", y="MarketCapitalization")
-    st.pyplot(plt)
+    st.pyplot(fig)
 
 # Quarterly Earnings
 if "earnings_merged" in st.session_state and not st.session_state.earnings_merged.empty:
     st.subheader("Quarterly EPS per ticker")
-    plt.figure(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(data=st.session_state.earnings_merged, x="reportedDate", y="reportedEPS", hue="ticker")
-    st.pyplot(plt)
+    st.pyplot(fig)
