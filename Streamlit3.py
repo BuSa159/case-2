@@ -12,7 +12,7 @@ FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
 
 # --- Tickers ---
-tickers = ["XOM", "BP"]
+tickers = ["XOM"]
 # Voor toekomst: ["XOM", "CVX", "SHEL", "TTE", "COP", "BP", "ENB", "EQNR", "SO", "E"]
 
 # --- Functies voor Alpha Vantage ---
