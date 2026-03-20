@@ -16,7 +16,6 @@ FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 tickers = ["XOM"]
 # Voor toekomst: ["XOM", "CVX", "SHEL", "TTE", "COP", "BP", "ENB", "EQNR", "SO", "E"]
 
-
 # --- Functies voor Alpha Vantage ---
 @st.cache_data
 def load_alpha_daily(ticker, api_key):
@@ -135,6 +134,14 @@ if dfs_daily:
 dfs_earnings = [df for df in st.session_state.earnings_data.values() if not df.empty]
 if dfs_earnings:
     st.session_state.earnings_merged = pd.concat(dfs_earnings, ignore_index=True)
+
+# TIJDELIJK - voor debuggen
+if "overview_data" in st.session_state:
+    st.write("OVERVIEW kolommen:", st.session_state.overview_data.get("XOM", pd.DataFrame()).columns.tolist())
+    st.write("OVERVIEW data:", st.session_state.overview_data.get("XOM", pd.DataFrame()).head(1))
+ 
+if "finnhub_profile" in st.session_state:
+    st.write("FINNHUB kolommen:", st.session_state.finnhub_profile.get("XOM", pd.DataFrame()).columns.tolist())
 
 # =====================
 # DASHBOARD LAYOUT
