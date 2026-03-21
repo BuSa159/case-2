@@ -109,9 +109,10 @@ all_earnings = pd.concat([st.session_state[f"earnings_{t}"] for t in tickers], i
 # DASHBOARD LAYOUT
 # =====================
 
-#foto
-st.title("💹 Multi-Stock Analysis Dashboard")
-st.image("wjack money.png", caption="Wasted time")
+_, center_col, _ = st.columns([1, 2, 1])
+with center_col:
+    st.markdown("<h1 style='text-align: center;'>💹 Multi-Stock Analysis Dashboard</h1>", unsafe_allow_html=True)
+    st.image("wjack money.png", caption="Wasted time")
 
 with st.sidebar:
     st.header("Instellingen")
