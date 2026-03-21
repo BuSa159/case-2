@@ -4,6 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+tickers = ["XOM"]
+#, "BP", "CVX", "SHEL"]  # Uitgebreid voor demo
+
 # --- API Keys ---
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
@@ -85,8 +88,6 @@ def load_finnhub_profile(ticker, api_key):
 # =====================
 # LOGIC & STATE
 # =====================
-
-tickers = ["XOM", "BP", "CVX", "SHEL"]  # Uitgebreid voor demo
 
 # Data ophalen (als het nog niet in session_state staat)
 for t in tickers:
