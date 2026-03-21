@@ -1,0 +1,4 @@
+import streamlit as st
+
+st.title("Page 2")
+st.write("Content for page 2 goes here.")
