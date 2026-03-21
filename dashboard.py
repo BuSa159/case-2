@@ -150,8 +150,24 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.subheader("Slotkoers over tijd")
     if not all_daily.empty:
+        # Tijdsperiode selector
+        periode = st.select_slider(
+            "Tijdsperiode",
+            options=["Alles", "Laatste 24 maanden", "Laatste 3 maanden"],
+            value="Alles"
+        )
+
+        # Filteren op periode
+        df_filtered = all_daily.copy()
+        today = pd.Timestamp.today()
+
+        if periode == "Laatste 24 maanden":
+            df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=24)]
+        elif periode == "Laatste 3 maanden":
+            df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=3)]
+
         fig, ax = plt.subplots(figsize=(8, 5))
-        sns.lineplot(data=all_daily, x="date", y="4. close", hue="ticker", ax=ax)
+        sns.lineplot(data=df_filtered, x="date", y="4. close", hue="ticker", ax=ax)
         plt.xticks(rotation=45)
         st.pyplot(fig)
     else:
