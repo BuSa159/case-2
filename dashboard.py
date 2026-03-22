@@ -22,9 +22,9 @@ def load_fmp_daily(ticker, api_key):
         if "historical" in data:
             df = pd.DataFrame(data["historical"])
             df["date"] = pd.to_datetime(df["date"])
-            df = df.rename(columns={"close": "4. close"})
+            df = df.rename(columns={"close": "close_price"})
             df["ticker"] = ticker
-            return df[["date", "4. close", "ticker"]]
+            return df[["date", "close_price", "ticker"]]
     except Exception as e:
         st.error(f"Fout bij laden dagdata voor {ticker}: {e}")
     return pd.DataFrame()
@@ -63,7 +63,8 @@ def load_fmp_earnings(ticker, api_key):
             df = pd.DataFrame(data)
             df["ticker"] = ticker
             df["reportedDate"] = pd.to_datetime(df["date"])
-            df["reportedEPS"] = pd.to_numeric(df["eps"], errors="coerce")
+            eps_col = "eps" if "eps" in df.columns else "epsdiluted"
+            df["reportedEPS"] = pd.to_numeric(df[eps_col], errors="coerce")
             return df[["reportedDate", "reportedEPS", "ticker"]]
     except Exception as e:
         st.error(f"Fout bij laden FMP earnings voor {ticker}: {e}")
@@ -169,7 +170,7 @@ with col_left:
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=3)]
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        sns.lineplot(data=df_filtered, x="date", y="4. close", hue="ticker", ax=ax)
+        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
         plt.xticks(rotation=45)
         st.pyplot(fig)
     else:
@@ -193,3 +194,8 @@ if not all_earnings.empty:
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
+
+#Debugging
+st.divider()
+st.write(all_earnings.columns.tolist())
+st.write(all_daily.columns.tolist())
