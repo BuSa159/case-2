@@ -131,30 +131,28 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.subheader("Koers informatie")
     if not all_daily.empty:
-        df_filtered = all_daily.copy()
         today = pd.Timestamp.today()
 
-        fig, ax = plt.subplots(figsize=(8, 5))
-        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
+        # Slider eerst, daarna figuur — zodat het figuur direct de juiste data toont
         periode = st.select_slider(
             "Tijdsperiode",
             options=["Alles", "Laatste 3 maanden", "Laatste maand"],
             value="Alles"
         )
 
+        df_filtered = all_daily.copy()
         if periode == "Laatste 3 maanden":
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=3)]
         elif periode == "Laatste maand":
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=1)]
 
-        if periode != "Alles":
-            fig2, ax2 = plt.subplots(figsize=(8, 5))
-            sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax2)
-            plt.xticks(rotation=45)
-            st.pyplot(fig2)
+        # Figuur wordt altijd op dezelfde plek opnieuw getekend
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
+        ax.set_xlabel("Datum")
+        ax.set_ylabel("Slotkoers (USD)")
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
     else:
         st.info("Geen koersdata beschikbaar.")
 
@@ -163,7 +161,8 @@ with col_right:
     if not df_market_cap.empty:
         fig, ax = plt.subplots(figsize=(8, 5))
         sns.barplot(data=df_market_cap, x="ticker", y="MarketCapitalization", ax=ax, palette="viridis")
-        ax.set_ylabel("USD ($)")
+        ax.set_xlabel("Bedrijf")
+        ax.set_ylabel("Marktkapitalisatie (USD)")
         st.pyplot(fig)
     else:
         st.info("Laad eerst pagina 2 om marktkapitalisatie data in te laden.")
@@ -174,6 +173,8 @@ st.subheader("Quarterly EPS per ticker")
 if not all_earnings.empty:
     fig, ax = plt.subplots(figsize=(15, 5))
     sns.lineplot(data=all_earnings, x="reportedDate", y="reportedEPS", hue="ticker", marker="o", ax=ax)
+    ax.set_xlabel("Datum")
+    ax.set_ylabel("EPS (USD)")
     plt.xticks(rotation=45)
     st.pyplot(fig)
 else:
