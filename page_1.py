@@ -45,7 +45,11 @@ st.plotly_chart(fig, use_container_width=True)
 
 "---"
 
-
+  selected_tickers = st.multiselect(
+            "Selecteer bedrijven:",
+            options=tickers,
+            default=tickers
+        )
 @st.cache_data(ttl=3600)  # Cache 1 uur
 def get_dividend_data(tickers):
     rows = []
