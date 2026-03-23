@@ -10,7 +10,9 @@ st.write("Content for page 1 goes here.")
 
 # Voor wanneer het werkt: , 'CVX', 'SHEL', 'TTE'
 
-tickers = ['XOM']
+# 1. Eerst de lijst definiëren
+tickers = ['XOM', 'CVX', 'SHEL', 'TTE']
+
 data = yf.download(tickers, period="1y", group_by='ticker', auto_adjust=True)
 
 fig = make_subplots(
@@ -45,51 +47,31 @@ st.plotly_chart(fig, use_container_width=True)
 
 "---"
 
-  selected_tickers = st.multiselect(
-            "Selecteer bedrijven:",
-            options=tickers,
-            default=tickers
-        )
-@st.cache_data(ttl=3600)  # Cache 1 uur
+@st.cache_data(ttl=3600)
 def get_dividend_data(tickers):
     rows = []
-
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            
-            # Dividenden ophalen
             dividends = stock.dividends
             if dividends.empty:
                 continue
-            
-            # Jaarlijks dividenden optellen
             dividends.index = dividends.index.tz_localize(None)
             annual_div = dividends.resample('YE').sum()
-            
-            # Info ophalen
-            info = stock.fast_info  # fast_info ipv info = minder requests!
+            info = stock.fast_info
             current_price = info.last_price
-            
-            # EPS via financials
-            financials = stock.financials
             eps_row = stock.info.get('trailingEps')
-
-            time.sleep(1)  # Vertraging tussen tickers
+            time.sleep(1)
 
             for year, div_amount in annual_div.items():
                 year_str = year.year
-                
                 div_yield = (div_amount / current_price * 100) if current_price else None
-                
                 prev_years = [y for y in annual_div.index if y.year == year_str - 1]
                 div_growth = None
                 if prev_years:
                     prev_div = annual_div[prev_years[0]]
                     div_growth = ((div_amount - prev_div) / prev_div * 100) if prev_div else None
-                
                 payout = (div_amount / eps_row * 100) if eps_row and eps_row > 0 else None
-                
                 rows.append({
                     'Ticker': ticker,
                     'Jaar': year_str,
@@ -98,30 +80,38 @@ def get_dividend_data(tickers):
                     'Div. Stijging (%)': round(div_growth, 2) if div_growth else None,
                     'Payout Ratio (%)': round(payout, 2) if payout else None,
                 })
-
         except Exception as e:
             st.warning(f"Fout bij ophalen data voor {ticker}: {e}")
             continue
-
     return pd.DataFrame(rows)
 
-
+# 3. Dan de UI
 st.title("Dividend Overzicht")
 
-with st.spinner("Data ophalen..."):
-    df = get_dividend_data(tickers)
+selected_tickers = st.multiselect(
+    "Selecteer bedrijven:",
+    options=tickers,
+    default=tickers
+)
 
-if df.empty:
-    st.error("Geen data beschikbaar.")
+# 4. Guard: niets geselecteerd
+if not selected_tickers:
+    st.warning("Selecteer minimaal één bedrijf.")
 else:
-    df = df.sort_values(['Ticker', 'Jaar'], ascending=[True, False]).reset_index(drop=True)
-    
-    st.dataframe(
-        df.style.format({
-            'Dividend ($)': '{:.2f}',
-            'Div. Rendement (%)': '{:.2f}%',
-            'Div. Stijging (%)': '{:.2f}%',
-            'Payout Ratio (%)': '{:.2f}%',
-        }, na_rep='-'),
-        use_container_width=True
-    )
+    with st.spinner("Data ophalen..."):
+        # Let op: selected_tickers meegeven, niet tickers!
+        df = get_dividend_data(tuple(selected_tickers))  # tuple vanwege cache hashing
+
+    if df.empty:
+        st.error("Geen data beschikbaar.")
+    else:
+        df = df.sort_values(['Ticker', 'Jaar'], ascending=[True, False]).reset_index(drop=True)
+        st.dataframe(
+            df.style.format({
+                'Dividend ($)': '{:.2f}',
+                'Div. Rendement (%)': '{:.2f}%',
+                'Div. Stijging (%)': '{:.2f}%',
+                'Payout Ratio (%)': '{:.2f}%',
+            }, na_rep='-'),
+            use_container_width=True
+        )
