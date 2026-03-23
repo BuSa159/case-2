@@ -9,12 +9,9 @@ import time
  
 # ── Configuratie ──────────────────────────────────────────────────────────────
 TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR']
-COLORS   = {
-    'XOM':  '#3B8BD4',
-    'CVX':  '#1D9E75',
-    'SHEL': '#EF9F27',
-    'TTE':  '#D85A30',
-}
+kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
+            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
+kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(tickers)}
  
 # ── Data ophalen (gecached) ───────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
