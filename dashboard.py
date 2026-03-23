@@ -26,25 +26,22 @@ def load_daily(ticker):
 
 
 @st.cache_data
-def load_earnings(ticker):
+def load_cashflow(ticker):
     try:
         t = yf.Ticker(ticker)
-        df = t.quarterly_income_stmt.T
-        if "Basic EPS" in df.columns:
-            df = df[["Basic EPS"]].reset_index()
-            df.columns = ["reportedDate", "reportedEPS"]
-        elif "Diluted EPS" in df.columns:
-            df = df[["Diluted EPS"]].reset_index()
-            df.columns = ["reportedDate", "reportedEPS"]
+        df = t.quarterly_cashflow.T
+        if "Free Cash Flow" in df.columns:
+            df = df[["Free Cash Flow"]].reset_index()
+            df.columns = ["reportedDate", "freeCashFlow"]
         else:
-            st.warning(f"Geen EPS kolom gevonden voor {ticker}")
+            st.warning(f"Geen Free Cash Flow kolom gevonden voor {ticker}")
             return pd.DataFrame()
         df["reportedDate"] = pd.to_datetime(df["reportedDate"])
-        df["reportedEPS"] = pd.to_numeric(df["reportedEPS"], errors="coerce")
+        df["freeCashFlow"] = pd.to_numeric(df["freeCashFlow"], errors="coerce") / 1e9
         df["ticker"] = ticker
-        return df[["reportedDate", "reportedEPS", "ticker"]].dropna()
+        return df[["reportedDate", "freeCashFlow", "ticker"]].dropna()
     except Exception as e:
-        st.error(f"Fout bij laden earnings voor {ticker}: {e}")
+        st.error(f"Fout bij laden cashflow voor {ticker}: {e}")
     return pd.DataFrame()
 
 
@@ -70,13 +67,13 @@ def load_finnhub_profile(ticker, api_key):
 for t in tickers:
     if f"daily_{t}" not in st.session_state:
         st.session_state[f"daily_{t}"] = load_daily(t)
-    if f"earnings_{t}" not in st.session_state:
-        st.session_state[f"earnings_{t}"] = load_earnings(t)
+    if f"cashflow_{t}" not in st.session_state:
+        st.session_state[f"cashflow_{t}"] = load_cashflow(t)
     if f"finnhub_{t}" not in st.session_state:
         st.session_state[f"finnhub_{t}"] = load_finnhub_profile(t, FINNHUB_KEY)
 
 all_daily = pd.concat([st.session_state[f"daily_{t}"] for t in tickers], ignore_index=True)
-all_earnings = pd.concat([st.session_state[f"earnings_{t}"] for t in tickers], ignore_index=True)
+all_cashflow = pd.concat([st.session_state[f"cashflow_{t}"] for t in tickers], ignore_index=True)
 
 # Marktkapitalisatie ophalen uit session_state (ingeladen door pagina 2)
 market_cap_data = []
@@ -148,7 +145,6 @@ with col_right:
 
         if not df_mcap_filtered.empty:
             df_mcap_filtered["MarketCap_B"] = df_mcap_filtered["MarketCapitalization"] / 1e9
-            # Sorteren van hoog naar laag
             df_mcap_filtered = df_mcap_filtered.sort_values("MarketCap_B", ascending=False)
 
             fig, ax = plt.subplots(figsize=(8, 5))
@@ -157,7 +153,8 @@ with col_right:
                 x="ticker",
                 y="MarketCap_B",
                 ax=ax,
-                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]}
+                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]},
+                order=df_mcap_filtered["ticker"].tolist()
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
@@ -170,26 +167,20 @@ with col_right:
 
 # --- GRAFIEK RIJ 2 ---
 st.divider()
-st.subheader("Quarterly EPS")
-if not all_earnings.empty:
+st.subheader("Quarterly Free Cash Flow")
+if not all_cashflow.empty:
     fig, ax = plt.subplots(figsize=(15, 5))
-    sns.lineplot(data=all_earnings, x="reportedDate", y="reportedEPS", hue="ticker",
+    sns.lineplot(data=all_cashflow, x="reportedDate", y="freeCashFlow", hue="ticker",
                  marker="o", palette=kleur_map, ax=ax)
     ax.set_xlabel("Datum")
-    ax.set_ylabel("EPS (USD)")
+    ax.set_ylabel("Free Cash Flow (miljarden USD)")
     ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
+    ax.axhline(0, color="gray", linewidth=0.8, linestyle="--")
     plt.xticks(rotation=45)
     plt.tight_layout()
     st.pyplot(fig)
 else:
-    st.info("Geen winst data beschikbaar.")
-
-# --- Stupiede foto ---
-st.divider()
-_, center_col2, _ = st.columns([1, 2, 1])
-with center_col2:
-    st.image("wjack money.png", caption="Wasted time")
-
+    st.info("Geen cashflow data beschikbaar.")
 
 # --- FINANCIEEL GEVOEL ---
 st.divider()
