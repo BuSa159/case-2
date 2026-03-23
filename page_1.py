@@ -7,9 +7,9 @@ import random
 from datetime import datetime
 
 # ── 1. Configuratie ───────────────────────────────────────────────────────────
-TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR', 'SO', 'E']
+TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR']
 kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
-            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4", "#FF9F1C", "#4361EE"]
+            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
 kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(TICKERS)}
 
 # ── 2. Data Functies ──────────────────────────────────────────────────────────
