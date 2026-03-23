@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-tickers = ["XOM", "SHEL", "CVX", "TTE"]
+tickers = ["XOM", "SHEL", "CVX", "TTE", "COP", "BP", "ENB", "EQNR"]
 
 @st.cache_data
 def load_info(ticker):
