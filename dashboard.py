@@ -18,7 +18,7 @@ def load_alpha_vantage_daily(ticker, api_key):
     try:
         url = (
             f"https://www.alphavantage.co/query"
-            f"?function=TIME_SERIES_DAILY&symbol={ticker}&outputsize=full&apikey={api_key}"
+            f"?function=TIME_SERIES_DAILY&symbol={ticker}&outputsize=compact&apikey={api_key}"
         )
         r = requests.get(url, timeout=10)
         data = r.json()
