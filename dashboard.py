@@ -5,11 +5,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import yfinance as yf
 
-tickers = ["XOM", "SHEL", "CVX", "TTE"]
+tickers = ["XOM", "SHEL", "CVX", "TTE", "COP", "BP", "ENB", "EQNR"]
 
 # --- API Keys ---
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
-FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
 
 # --- DATA FUNCTIES ---
 
@@ -27,26 +26,25 @@ def load_daily(ticker):
 
 
 @st.cache_data
-def load_fmp_overview(ticker, api_key):
-    # Tijdelijk uitgeschakeld om API call limiet te voorkomen
-    return pd.DataFrame()
-
-
-@st.cache_data
-def load_fmp_earnings(ticker, api_key):
+def load_earnings(ticker):
     try:
-        url = f"https://financialmodelingprep.com/api/v3/income-statement/{ticker}?period=quarter&apikey={api_key}"
-        r = requests.get(url, timeout=10)
-        data = r.json()
-        if isinstance(data, list) and len(data) > 0:
-            df = pd.DataFrame(data)
-            df["ticker"] = ticker
-            df["reportedDate"] = pd.to_datetime(df["date"])
-            eps_col = "eps" if "eps" in df.columns else "epsdiluted"
-            df["reportedEPS"] = pd.to_numeric(df[eps_col], errors="coerce")
-            return df[["reportedDate", "reportedEPS", "ticker"]]
+        t = yf.Ticker(ticker)
+        df = t.quarterly_income_stmt.T
+        if "Basic EPS" in df.columns:
+            df = df[["Basic EPS"]].reset_index()
+            df.columns = ["reportedDate", "reportedEPS"]
+        elif "Diluted EPS" in df.columns:
+            df = df[["Diluted EPS"]].reset_index()
+            df.columns = ["reportedDate", "reportedEPS"]
+        else:
+            st.warning(f"Geen EPS kolom gevonden voor {ticker}")
+            return pd.DataFrame()
+        df["reportedDate"] = pd.to_datetime(df["reportedDate"])
+        df["reportedEPS"] = pd.to_numeric(df["reportedEPS"], errors="coerce")
+        df["ticker"] = ticker
+        return df[["reportedDate", "reportedEPS", "ticker"]].dropna()
     except Exception as e:
-        st.error(f"Fout bij laden FMP earnings voor {ticker}: {e}")
+        st.error(f"Fout bij laden earnings voor {ticker}: {e}")
     return pd.DataFrame()
 
 
@@ -72,15 +70,12 @@ def load_finnhub_profile(ticker, api_key):
 for t in tickers:
     if f"daily_{t}" not in st.session_state:
         st.session_state[f"daily_{t}"] = load_daily(t)
-    if f"overview_{t}" not in st.session_state:
-        st.session_state[f"overview_{t}"] = load_fmp_overview(t, FMP_KEY)
     if f"earnings_{t}" not in st.session_state:
-        st.session_state[f"earnings_{t}"] = load_fmp_earnings(t, FMP_KEY)
+        st.session_state[f"earnings_{t}"] = load_earnings(t)
     if f"finnhub_{t}" not in st.session_state:
         st.session_state[f"finnhub_{t}"] = load_finnhub_profile(t, FINNHUB_KEY)
 
 all_daily = pd.concat([st.session_state[f"daily_{t}"] for t in tickers], ignore_index=True)
-all_overviews = pd.concat([st.session_state[f"overview_{t}"] for t in tickers], ignore_index=True)
 all_earnings = pd.concat([st.session_state[f"earnings_{t}"] for t in tickers], ignore_index=True)
 
 # Marktkapitalisatie ophalen uit session_state (ingeladen door pagina 2)
@@ -94,6 +89,11 @@ for t in tickers:
         })
 df_market_cap = pd.DataFrame(market_cap_data)
 
+# Centrale kleurmap — elke ticker krijgt een vaste kleur
+kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
+            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
+kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(tickers)}
+
 # =====================
 # DASHBOARD LAYOUT
 # =====================
@@ -105,31 +105,11 @@ with center_col:
 
 st.divider()
 
-# --- BOVENSTE RIJ: Dynamische Metric kaarten ---
-if not all_overviews.empty:
-    ticker_data = all_overviews[all_overviews['ticker'] == tickers[0]]
-
-    if not ticker_data.empty:
-        profile = ticker_data.iloc[0]
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.metric("Bedrijf", profile.get("Name", "—"))
-        with m2:
-            mcap = float(profile.get("MarketCapitalization", 0))
-            st.metric("Market Cap", f"${mcap / 1e9:.1f}B")
-        with m3:
-            st.metric("Sector", profile.get("Sector", "—"))
-        with m4:
-            shares = float(profile.get("SharesOutstanding", 0))
-            st.metric("Aandelen (M)", f"{shares / 1e6:.1f}M")
-
-st.divider()
-
 # --- GRAFIEK RIJ 1 ---
 col_left, col_right = st.columns(2)
 
 with col_left:
-    st.subheader("Koers informatie")
+    st.subheader("Sluitende Beurskoers")
     if not all_daily.empty:
         today = pd.Timestamp.today()
 
@@ -146,10 +126,14 @@ with col_left:
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=1)]
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
+        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker",
+                     palette=kleur_map, ax=ax)
         ax.set_xlabel("Datum")
         ax.set_ylabel("Slotkoers (USD)")
+        # Legenda buiten het figuur rechts
+        ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
         plt.xticks(rotation=45)
+        plt.tight_layout()
         st.pyplot(fig)
     else:
         st.info("Geen koersdata beschikbaar.")
@@ -157,7 +141,6 @@ with col_left:
 with col_right:
     st.subheader("Marktkapitalisatie Vergelijking")
     if not df_market_cap.empty:
-        # Multiselect voor tickerselectie
         selected_tickers = st.multiselect(
             "Selecteer bedrijven:",
             options=tickers,
@@ -167,10 +150,7 @@ with col_right:
         df_mcap_filtered = df_market_cap[df_market_cap["ticker"].isin(selected_tickers)].copy()
 
         if not df_mcap_filtered.empty:
-            # Y-as omzetten naar miljarden
             df_mcap_filtered["MarketCap_B"] = df_mcap_filtered["MarketCapitalization"] / 1e9
-
-            kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E"]
 
             fig, ax = plt.subplots(figsize=(8, 5))
             sns.barplot(
@@ -178,10 +158,11 @@ with col_right:
                 x="ticker",
                 y="MarketCap_B",
                 ax=ax,
-                palette=kleurset[:len(df_mcap_filtered)]
+                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]}
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
+            plt.tight_layout()
             st.pyplot(fig)
         else:
             st.info("Selecteer minimaal één bedrijf.")
@@ -190,13 +171,17 @@ with col_right:
 
 # --- GRAFIEK RIJ 2 ---
 st.divider()
-st.subheader("Quarterly EPS per ticker")
+st.subheader("Quarterly EPS")
 if not all_earnings.empty:
     fig, ax = plt.subplots(figsize=(15, 5))
-    sns.lineplot(data=all_earnings, x="reportedDate", y="reportedEPS", hue="ticker", marker="o", ax=ax)
+    sns.lineplot(data=all_earnings, x="reportedDate", y="reportedEPS", hue="ticker",
+                 marker="o", palette=kleur_map, ax=ax)
     ax.set_xlabel("Datum")
     ax.set_ylabel("EPS (USD)")
+    # Legenda buiten het figuur rechts
+    ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
     plt.xticks(rotation=45)
+    plt.tight_layout()
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
