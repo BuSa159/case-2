@@ -7,7 +7,11 @@ import random
 from datetime import datetime
 
 # ── 1. Configuratie ───────────────────────────────────────────────────────────
-TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR']
+TICKERS = {
+    'XOM': 'ExxonMobil', 'CVX': 'Chevron', 'SHEL': 'Shell', 
+    'TTE': 'TotalEnergies', 'COP': 'ConocoPhillips', 'BP': 'BP', 
+    'ENB': 'Enbridge', 'EQNR': 'Equinor'
+}
 kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
             "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
 kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(TICKERS)}
