@@ -2,11 +2,15 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import yfinance as yf
+import pandas as pd
+import time
 
 st.title("Page 1")
 st.write("Content for page 1 goes here.")
 
-tickers = ['XOM', 'CVX', 'SHEL', 'TTE']
+# Voor wanneer het werkt: , 'CVX', 'SHEL', 'TTE'
+
+tickers = ['XOM']
 data = yf.download(tickers, period="1y", group_by='ticker', auto_adjust=True)
 
 fig = make_subplots(
@@ -41,10 +45,6 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.divider
 
-import pandas as pd
-import time
-
-tickers = ['XOM', 'CVX', 'SHEL', 'TTE']
 
 @st.cache_data(ttl=3600)  # Cache 1 uur
 def get_dividend_data(tickers):
