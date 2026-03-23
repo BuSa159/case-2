@@ -38,3 +38,72 @@ fig.update_xaxes(title_text="Tijd")
 fig.update_yaxes(title_text="Volume")
 
 st.plotly_chart(fig, use_container_width=True)
+
+st.divider
+
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+
+tickers = ['XOM', 'CVX', 'SHEL', 'TTE']
+
+rows = []
+
+for ticker in tickers:
+    stock = yf.Ticker(ticker)
+    
+    # Dividenden ophalen
+    dividends = stock.dividends
+    if dividends.empty:
+        continue
+    
+    # Jaarlijks dividenden optellen
+    dividends.index = dividends.index.tz_localize(None)
+    annual_div = dividends.resample('YE').sum()
+    
+    # Info ophalen
+    info = stock.info
+    current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+    eps = info.get('trailingEps')
+    
+    for year, div_amount in annual_div.items():
+        year_str = year.year
+        
+        # Dividend rendement (alleen voor huidig jaar zinvol, anders benadering)
+        div_yield = (div_amount / current_price * 100) if current_price else None
+        
+        # Dividend stijging t.o.v. vorig jaar
+        prev_years = [y for y in annual_div.index if y.year == year_str - 1]
+        if prev_years:
+            prev_div = annual_div[prev_years[0]]
+            div_growth = ((div_amount - prev_div) / prev_div * 100) if prev_div else None
+        else:
+            div_growth = None
+        
+        # Payout ratio (EPS alleen beschikbaar als huidig getal)
+        payout = (div_amount / eps * 100) if eps and eps > 0 else None
+        
+        rows.append({
+            'Ticker': ticker,
+            'Jaar': year_str,
+            'Dividend ($)': round(div_amount, 2),
+            'Div. Rendement (%)': round(div_yield, 2) if div_yield else None,
+            'Div. Stijging (%)': round(div_growth, 2) if div_growth else None,
+            'Payout Ratio (%)': round(payout, 2) if payout else None,
+        })
+
+df = pd.DataFrame(rows)
+
+# Sorteren op ticker en jaar
+df = df.sort_values(['Ticker', 'Jaar'], ascending=[True, False]).reset_index(drop=True)
+
+st.title("Dividend Overzicht")
+st.dataframe(
+    df.style.format({
+        'Dividend ($)': '{:.2f}',
+        'Div. Rendement (%)': '{:.2f}%',
+        'Div. Stijging (%)': '{:.2f}%',
+        'Payout Ratio (%)': '{:.2f}%',
+    }, na_rep='-'),
+    use_container_width=True
+)
