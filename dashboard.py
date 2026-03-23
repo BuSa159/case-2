@@ -100,9 +100,7 @@ kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(tickers)}
 
 _, center_col, _ = st.columns([1, 2, 1])
 with center_col:
-    st.markdown("<h1 style='text-align: center;'>💹 Multi-Stock Analysis Dashboard</h1>", unsafe_allow_html=True)
-    st.image("wjack money.png", caption="Wasted time")
-
+    st.markdown("<h1 style='text-align: center;'>Financieel Energie Dashboard</h1>", unsafe_allow_html=True)
 st.divider()
 
 # --- GRAFIEK RIJ 1 ---
@@ -158,7 +156,8 @@ with col_right:
                 x="ticker",
                 y="MarketCap_B",
                 ax=ax,
-                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]}
+                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]},
+                order='descending'
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
@@ -185,3 +184,13 @@ if not all_earnings.empty:
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
+
+_, center_col2, _ = st.columns([1, 2, 1])
+with center_col2:
+    st.image("wjack money.png", caption="Wasted time")
+
+uppie, downie = st.columns(2)
+with uppie:
+    st.image("stonks_up.webp", caption="Alles is goed")
+with downie:
+    st.image("stonks_down.webp", caption="Alles is fout")
