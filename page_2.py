@@ -96,10 +96,10 @@ for _, row in df_bubble.iterrows():
         text=[t],
         textposition="top center",
         marker=dict(
-            size=row["SharesOutstanding"] / 1e7,       # Grootte op basis van aandelen
+            size=row["SharesOutstanding"] / 1e9,       # Grootte op basis van aandelen (100x kleiner)
             sizemode="area",
-            sizeref=2,
-            sizemin=10,
+            sizeref=0.02,
+            sizemin=8,
             color=kleur_map[t],
             opacity=0.85,
             line=dict(width=1, color="white")
@@ -118,7 +118,8 @@ fig.update_layout(
     yaxis_title="Marktkapitalisatie (miljarden USD)",
     showlegend=True,
     legend=dict(title="Ticker"),
-    height=550,
+    height=650,
+    width=1000,
     plot_bgcolor="white",
     paper_bgcolor="white",
 )
