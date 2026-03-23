@@ -5,7 +5,6 @@ import yfinance as yf
 import pandas as pd
 import time
 
-st.title("Dividend overzicht — energie sector")
 
  
 # ── Configuratie ──────────────────────────────────────────────────────────────
