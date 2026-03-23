@@ -96,7 +96,7 @@ for _, row in df_bubble.iterrows():
         text=[t],
         textposition="top center",
         marker=dict(
-            size=row["SharesOutstanding"] / 1e9,       # Grootte op basis van aandelen (100x kleiner)
+            size=row["SharesOutstanding"] / 1e8,       # Grootte op basis van aandelen (100x kleiner)
             sizemode="area",
             sizeref=0.02,
             sizemin=8,
