@@ -169,16 +169,44 @@ with col_right:
 st.divider()
 st.subheader("Quarterly Free Cash Flow")
 if not all_cashflow.empty:
-    fig, ax = plt.subplots(figsize=(15, 5))
-    sns.lineplot(data=all_cashflow, x="reportedDate", y="freeCashFlow", hue="ticker",
-                 marker="o", palette=kleur_map, ax=ax)
-    ax.set_xlabel("Datum")
-    ax.set_ylabel("Free Cash Flow (miljarden USD)")
-    ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
-    ax.axhline(0, color="gray", linewidth=0.8, linestyle="--")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
+    import plotly.graph_objects as go
+
+    fig_cf = go.Figure()
+
+    for t in tickers:
+        df_t = all_cashflow[all_cashflow["ticker"] == t]
+        if df_t.empty:
+            continue
+        fig_cf.add_trace(go.Scatter(
+            x=df_t["reportedDate"],
+            y=df_t["freeCashFlow"],
+            mode="lines+markers",
+            name=t,
+            line=dict(color=kleur_map[t], width=2),
+            marker=dict(size=7, color=kleur_map[t]),
+            hovertemplate=(
+                f"<b>{t}</b><br>"
+                "Datum: %{x|%Y-%m-%d}<br>"
+                "Free Cash Flow: $%{y:.2f}B<br>"
+                "<extra></extra>"
+            )
+        ))
+
+    fig_cf.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
+
+    fig_cf.update_layout(
+        xaxis_title="Datum",
+        yaxis_title="Free Cash Flow (miljarden USD)",
+        legend=dict(title="Ticker"),
+        height=500,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="x unified"
+    )
+    fig_cf.update_xaxes(showgrid=True, gridcolor="#EEEEEE")
+    fig_cf.update_yaxes(showgrid=True, gridcolor="#EEEEEE")
+
+    st.plotly_chart(fig_cf, use_container_width=True)
 else:
     st.info("Geen cashflow data beschikbaar.")
 
