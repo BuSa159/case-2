@@ -15,3 +15,4 @@ kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(TICKERS)}
 @st.cache_data(ttl=3600)
 
 
+
