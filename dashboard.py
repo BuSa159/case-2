@@ -190,8 +190,14 @@ _, center_col2, _ = st.columns([1, 2, 1])
 with center_col2:
     st.image("wjack money.png", caption="Wasted time")
 
-uppie, downie = st.columns(2)
-with uppie:
-    st.image("stonks_up.webp", caption="Alles is goed")
-with downie:
-    st.image("stonks_down.webp", caption="Alles is fout")
+
+# --- FINANCIEEL GEVOEL ---
+st.divider()
+gevoel = st.radio("Hoe voel je je financieel?", options=["Goed", "Slecht"])
+
+_, center_col2, _ = st.columns([1, 2, 1])
+with center_col2:
+    if gevoel == "Goed":
+        st.image("stonks_up.webp", caption="Alles is goed")
+    else:
+        st.image("stonks_down.webp", caption="Alles is fout")
