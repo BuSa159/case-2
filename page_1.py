@@ -8,7 +8,7 @@ import time
 
  
 # ── Configuratie ──────────────────────────────────────────────────────────────
-TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE']
+TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR']
 COLORS   = {
     'XOM':  '#3B8BD4',
     'CVX':  '#1D9E75',
