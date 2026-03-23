@@ -157,12 +157,12 @@ with col_left:
 with col_right:
     st.subheader("Marktkapitalisatie Vergelijking")
     if not df_market_cap.empty:
-        # Checkbox menu voor tickerselectie
-        st.markdown("**Selecteer bedrijven:**")
-        selected_tickers = []
-        for t in tickers:
-            if st.checkbox(t, value=True, key=f"mcap_check_{t}"):
-                selected_tickers.append(t)
+        # Multiselect voor tickerselectie
+        selected_tickers = st.multiselect(
+            "Selecteer bedrijven:",
+            options=tickers,
+            default=tickers
+        )
 
         df_mcap_filtered = df_market_cap[df_market_cap["ticker"].isin(selected_tickers)].copy()
 
