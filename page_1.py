@@ -43,7 +43,7 @@ fig.update_yaxes(title_text="Volume")
 
 st.plotly_chart(fig, use_container_width=True)
 
-st.divider
+"---"
 
 
 @st.cache_data(ttl=3600)  # Cache 1 uur
