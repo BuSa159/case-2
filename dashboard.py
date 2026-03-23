@@ -157,8 +157,7 @@ with col_right:
                 x="ticker",
                 y="MarketCap_B",
                 ax=ax,
-                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]},
-                order=df_mcap_filtered["ticker"].tolist()
+                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]}
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
@@ -191,13 +190,8 @@ _, center_col2, _ = st.columns([1, 2, 1])
 with center_col2:
     st.image("wjack money.png", caption="Wasted time")
 
-# --- FINANCIEEL GEVOEL ---
-st.divider()
-gevoel = st.radio("Hoe voel je je financieel?", options=["Goed", "Slecht"])
-
-_, center_col2, _ = st.columns([1, 2, 1])
-with center_col2:
-    if gevoel == "Goed":
-        st.image("stonks_up.webp", caption="Alles is goed")
-    else:
-        st.image("stonks_down.webp", caption="Alles is fout")
+uppie, downie = st.columns(2)
+with uppie:
+    st.image("stonks_up.webp", caption="Alles is goed")
+with downie:
+    st.image("stonks_down.webp", caption="Alles is fout")
