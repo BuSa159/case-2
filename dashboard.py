@@ -133,7 +133,6 @@ with col_left:
     if not all_daily.empty:
         today = pd.Timestamp.today()
 
-        # Slider eerst, daarna figuur — zodat het figuur direct de juiste data toont
         periode = st.select_slider(
             "Tijdsperiode",
             options=["Alles", "Laatste 3 maanden", "Laatste maand"],
@@ -146,7 +145,6 @@ with col_left:
         elif periode == "Laatste maand":
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=1)]
 
-        # Figuur wordt altijd op dezelfde plek opnieuw getekend
         fig, ax = plt.subplots(figsize=(8, 5))
         sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
         ax.set_xlabel("Datum")
@@ -159,11 +157,34 @@ with col_left:
 with col_right:
     st.subheader("Marktkapitalisatie Vergelijking")
     if not df_market_cap.empty:
-        fig, ax = plt.subplots(figsize=(8, 5))
-        sns.barplot(data=df_market_cap, x="ticker", y="MarketCapitalization", ax=ax, palette="viridis")
-        ax.set_xlabel("Bedrijf")
-        ax.set_ylabel("Marktkapitalisatie (USD)")
-        st.pyplot(fig)
+        # Checkbox menu voor tickerselectie
+        st.markdown("**Selecteer bedrijven:**")
+        selected_tickers = []
+        for t in tickers:
+            if st.checkbox(t, value=True, key=f"mcap_check_{t}"):
+                selected_tickers.append(t)
+
+        df_mcap_filtered = df_market_cap[df_market_cap["ticker"].isin(selected_tickers)].copy()
+
+        if not df_mcap_filtered.empty:
+            # Y-as omzetten naar miljarden
+            df_mcap_filtered["MarketCap_B"] = df_mcap_filtered["MarketCapitalization"] / 1e9
+
+            kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E"]
+
+            fig, ax = plt.subplots(figsize=(8, 5))
+            sns.barplot(
+                data=df_mcap_filtered,
+                x="ticker",
+                y="MarketCap_B",
+                ax=ax,
+                palette=kleurset[:len(df_mcap_filtered)]
+            )
+            ax.set_xlabel("Bedrijf")
+            ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
+            st.pyplot(fig)
+        else:
+            st.info("Selecteer minimaal één bedrijf.")
     else:
         st.info("Laad eerst pagina 2 om marktkapitalisatie data in te laden.")
 
@@ -179,11 +200,3 @@ if not all_earnings.empty:
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
-
-st.divider()
-st.write("### Debug: Earnings")
-for t in tickers:
-    df = st.session_state.get(f"earnings_{t}")
-    st.write(f"**{t}:** {len(df) if df is not None and not df.empty else 'LEEG'} rijen")
-    if df is not None and not df.empty:
-        st.write(df.head(2))
