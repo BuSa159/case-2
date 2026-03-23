@@ -242,3 +242,67 @@ st.download_button(
     file_name='dividend_overzicht.csv',
     mime='text/csv',
 )
+
+
+# ── CAGR Berekening Functie ──────────────────────────────────────────────────
+def calculate_cagr_metrics(df_all, tickers):
+    cagr_results = []
+    
+    for ticker in tickers:
+        # Filter data voor dit aandeel en sorteer op jaar
+        sub = df_all[df_all['Ticker'] == ticker].sort_values('Jaar')
+        if sub.empty:
+            continue
+            
+        latest_div = sub['Dividend ($)'].iloc[-1]
+        latest_year = sub['Jaar'].iloc[-1]
+        
+        res = {'Ticker': ticker}
+        
+        for period in [3, 5, 10]:
+            target_year = latest_year - period
+            # Zoek de dividend waarde van n jaar geleden
+            start_div_row = sub[sub['Jaar'] == target_year]
+            
+            if not start_div_row.empty:
+                start_div = start_div_row['Dividend ($)'].values[0]
+                if start_div > 0:
+                    # Formule: (Eindwaarde / Beginwaarde)^(1/n) - 1
+                    cagr = (latest_div / start_div) ** (1 / period) - 1
+                    res[f'{period}j CAGR'] = round(cagr * 100, 2)
+                else:
+                    res[f'{period}j CAGR'] = None
+            else:
+                res[f'{period}j CAGR'] = None
+                
+        cagr_results.append(res)
+        
+    return pd.DataFrame(cagr_results)
+
+# ── In de hoofdsectie (onder de grafieken of tabel) ───────────────────────────
+st.divider()
+st.subheader("Dividend Groei Analyse (CAGR)")
+st.markdown("De *Compound Annual Growth Rate* laat het gemiddelde groeipercentage per jaar zien over een specifieke periode.")
+
+df_cagr = calculate_cagr_metrics(df_all, selected_tickers)
+
+if not df_cagr.empty:
+    # Styling voor de CAGR tabel
+    def style_cagr(val):
+        if pd.isna(val): return ''
+        return 'color: #1D9E75; font-weight: bold' if val >= 5 else '' # Accent bij >5% groei
+
+    styled_cagr = (
+        df_cagr.style
+        .applymap(style_cagr, subset=['3j CAGR', '5j CAGR', '10j CAGR'])
+        .format({
+            '3j CAGR': '{:.2f}%',
+            '5j CAGR': '{:.2f}%',
+            '10j CAGR': '{:.2f}%',
+        }, na_rep='N/A')
+    )
+    
+    st.dataframe(styled_cagr, use_container_width=True)
+else:
+    st.info("Onvoldoende historische data om CAGR te berekenen.")
+
