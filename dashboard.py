@@ -128,7 +128,6 @@ with col_left:
                      palette=kleur_map, ax=ax)
         ax.set_xlabel("Datum")
         ax.set_ylabel("Slotkoers (USD)")
-        # Legenda buiten het figuur rechts
         ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
         plt.xticks(rotation=45)
         plt.tight_layout()
@@ -149,6 +148,8 @@ with col_right:
 
         if not df_mcap_filtered.empty:
             df_mcap_filtered["MarketCap_B"] = df_mcap_filtered["MarketCapitalization"] / 1e9
+            # Sorteren van hoog naar laag
+            df_mcap_filtered = df_mcap_filtered.sort_values("MarketCap_B", ascending=False)
 
             fig, ax = plt.subplots(figsize=(8, 5))
             sns.barplot(
@@ -157,7 +158,7 @@ with col_right:
                 y="MarketCap_B",
                 ax=ax,
                 palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]},
-                order='descending'
+                order=df_mcap_filtered["ticker"].tolist()
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
@@ -177,7 +178,6 @@ if not all_earnings.empty:
                  marker="o", palette=kleur_map, ax=ax)
     ax.set_xlabel("Datum")
     ax.set_ylabel("EPS (USD)")
-    # Legenda buiten het figuur rechts
     ax.legend(title="Ticker", bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
     plt.xticks(rotation=45)
     plt.tight_layout()
@@ -185,12 +185,19 @@ if not all_earnings.empty:
 else:
     st.info("Geen winst data beschikbaar.")
 
+# --- Stupiede foto ---
+st.divider()
 _, center_col2, _ = st.columns([1, 2, 1])
 with center_col2:
     st.image("wjack money.png", caption="Wasted time")
 
-uppie, downie = st.columns(2)
-with uppie:
-    st.image("stonks_up.webp", caption="Alles is goed")
-with downie:
-    st.image("stonks_down.webp", caption="Alles is fout")
+# --- FINANCIEEL GEVOEL ---
+st.divider()
+gevoel = st.radio("Hoe voel je je financieel?", options=["Goed", "Slecht"])
+
+_, center_col2, _ = st.columns([1, 2, 1])
+with center_col2:
+    if gevoel == "Goed":
+        st.image("stonks_up.webp", caption="Alles is goed")
+    else:
+        st.image("stonks_down.webp", caption="Alles is fout")
