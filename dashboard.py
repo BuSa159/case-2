@@ -156,8 +156,7 @@ with col_right:
                 x="ticker",
                 y="MarketCap_B",
                 ax=ax,
-                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]},
-                order='descending'
+                palette={t: kleur_map[t] for t in df_mcap_filtered["ticker"]}
             )
             ax.set_xlabel("Bedrijf")
             ax.set_ylabel("Marktkapitalisatie (miljarden USD)")
