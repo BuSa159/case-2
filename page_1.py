@@ -243,66 +243,103 @@ st.download_button(
     mime='text/csv',
 )
 
-
-# ── CAGR Berekening Functie ──────────────────────────────────────────────────
-def calculate_cagr_metrics(df_all, tickers):
-    cagr_results = []
-    
+@st.cache_data(ttl=3600)
+def get_dividend_data(tickers: tuple) -> pd.DataFrame:
+    rows = []
+    current_year = datetime.now().year
     for ticker in tickers:
-        # Filter data voor dit aandeel en sorteer op jaar
-        sub = df_all[df_all['Ticker'] == ticker].sort_values('Jaar')
-        if sub.empty:
-            continue
+        try:
+            stock = yf.Ticker(ticker)
+            dividends = stock.dividends
+            if dividends.empty: continue
             
-        latest_div = sub['Dividend ($)'].iloc[-1]
-        latest_year = sub['Jaar'].iloc[-1]
-        
-        res = {'Ticker': ticker}
-        
-        for period in [3, 5, 10]:
-            target_year = latest_year - period
-            # Zoek de dividend waarde van n jaar geleden
-            start_div_row = sub[sub['Jaar'] == target_year]
+            dividends.index = dividends.index.tz_localize(None)
+            # We groeperen per jaar
+            annual_div = dividends.resample('YE').sum()
             
-            if not start_div_row.empty:
-                start_div = start_div_row['Dividend ($)'].values[0]
-                if start_div > 0:
-                    # Formule: (Eindwaarde / Beginwaarde)^(1/n) - 1
-                    cagr = (latest_div / start_div) ** (1 / period) - 1
-                    res[f'{period}j CAGR'] = round(cagr * 100, 2)
-                else:
-                    res[f'{period}j CAGR'] = None
-            else:
-                res[f'{period}j CAGR'] = None
+            info = stock.info
+            current_price = stock.fast_info.last_price
+            eps = info.get('trailingEps')
+
+            for year, div_amount in annual_div.items():
+                year_int = year.year
+                # Berekeningen
+                div_yield = (div_amount / current_price * 100) if current_price else None
                 
-        cagr_results.append(res)
-        
-    return pd.DataFrame(cagr_results)
+                # Groei t.o.v. vorig jaar (alleen als vorig jaar bestaat)
+                prev_year_val = annual_div.get(pd.Timestamp(year=year_int-1, month=12, day=31))
+                div_growth = ((div_amount - prev_year_val) / prev_year_val * 100) if prev_year_val else None
+                
+                payout = (div_amount / eps * 100) if eps and eps > 0 else None
 
-# ── In de hoofdsectie (onder de grafieken of tabel) ───────────────────────────
-st.divider()
-st.subheader("Dividend Groei Analyse (CAGR)")
-st.markdown("De *Compound Annual Growth Rate* laat het gemiddelde groeipercentage per jaar zien over een specifieke periode.")
+                rows.append({
+                    'Ticker': ticker,
+                    'Jaar': year_int,
+                    'Dividend ($)': round(div_amount, 2),
+                    'Div. Rendement (%)': round(div_yield, 2) if div_yield else None,
+                    'Div. Stijging (%)': round(div_growth, 2) if div_growth else None,
+                    'Payout Ratio (%)': round(payout, 2) if payout else None,
+                })
+            time.sleep(0.5)
+        except Exception as e:
+            st.warning(f"Fout bij {ticker}: {e}")
+    return pd.DataFrame(rows)
 
-df_cagr = calculate_cagr_metrics(df_all, selected_tickers)
+def calculate_cagr(df_all, tickers):
+    """Berekent CAGR op basis van het laatste VOLLEDIGE jaar."""
+    current_year = datetime.now().year
+    cagr_list = []
+
+    for ticker in tickers:
+        # Filter op ticker en negeer het huidige jaar (2026) voor de CAGR
+        sub = df_all[(df_all['Ticker'] == ticker) & (df_all['Jaar'] < current_year)].sort_values('Jaar')
+        if sub.empty: continue
+
+        # Laatste volledige jaar (bijv. 2025)
+        last_full_year_row = sub.iloc[-1]
+        end_val = last_full_year_row['Dividend ($)']
+        end_year = last_full_year_row['Jaar']
+
+        res = {'Ticker': ticker}
+        for period in [3, 5, 10]:
+            start_year = end_year - period
+            start_row = sub[sub['Jaar'] == start_year]
+            
+            if not start_row.empty:
+                start_val = start_row['Dividend ($)'].values[0]
+                if start_val > 0:
+                    # CAGR Formule: (Eind / Begin)^(1/n) - 1
+                    val = (pow((end_val / start_val), 1/period) - 1) * 100
+                    res[f'{period}j CAGR'] = round(val, 2)
+                else: res[f'{period}j CAGR'] = None
+            else: res[f'{period}j CAGR'] = None
+        cagr_list.append(res)
+    return pd.DataFrame(cagr_list)
+
+# ── UI Layout ─────────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Dividend Pro", layout="wide")
+st.title("Energiesector Dividend Analyse")
+
+# (Sidebar filters zoals in je originele code...)
+selected_tickers = st.sidebar.multiselect("Selecteer tickers", TICKERS, default=TICKERS)
+df_all = get_dividend_data(tuple(selected_tickers))
+
+# ── CAGR Sectie (Nieuw & Gecorrigeerd) ────────────────────────────────────────
+st.subheader("Structurele Groei (CAGR)")
+st.caption("Berekend op basis van laatste volledige kalenderjaren om vertekening te voorkomen.")
+df_cagr = calculate_cagr(df_all, selected_tickers)
 
 if not df_cagr.empty:
-    # Styling voor de CAGR tabel
-    def style_cagr(val):
-        if pd.isna(val): return ''
-        return 'color: #1D9E75; font-weight: bold' if val >= 5 else '' # Accent bij >5% groei
+    cols = st.columns(len(df_cagr))
+    for i, row in df_cagr.iterrows():
+        with cols[i % len(cols)]:
+            st.metric(row['Ticker'], f"{row['5j CAGR']}%", "5j Groei")
 
-    styled_cagr = (
-        df_cagr.style
-        .applymap(style_cagr, subset=['3j CAGR', '5j CAGR', '10j CAGR'])
-        .format({
-            '3j CAGR': '{:.2f}%',
-            '5j CAGR': '{:.2f}%',
-            '10j CAGR': '{:.2f}%',
-        }, na_rep='N/A')
-    )
-    
-    st.dataframe(styled_cagr, use_container_width=True)
-else:
-    st.info("Onvoldoende historische data om CAGR te berekenen.")
+    st.table(df_cagr.set_index('Ticker'))
 
+# ── De Detailtabel (zoals in jouw screenshot) ─────────────────────────────────
+st.divider()
+st.subheader("Jaarlijkse Details")
+# Sorteren op Ticker en Jaar (nieuwste boven)
+df_display = df_all[df_all['Ticker'].isin(selected_tickers)].sort_values(['Ticker', 'Jaar'], ascending=[True, False])
+st.dataframe(df_display, use_container_width=True)
