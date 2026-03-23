@@ -15,7 +15,7 @@ st.set_page_config(page_title="AI Energy Predictor", layout="wide")
 TICKERS = {
     'XOM': 'ExxonMobil', 'CVX': 'Chevron', 'SHEL': 'Shell', 
     'TTE': 'TotalEnergies', 'COP': 'ConocoPhillips', 'BP': 'BP', 
-    'ENB': 'Enbridge', 'EQNR': 'Equinor', 'SO': 'Southern Company', 'E': 'Eni'
+    'ENB': 'Enbridge', 'EQNR': 'Equinor'
 }
 
 # ── 2. DATA FUNCTIES ──────────────────────────────────────────────────────────
