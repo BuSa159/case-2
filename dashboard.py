@@ -1,5 +1,4 @@
 import streamlit as st
-import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,7 +7,6 @@ import yfinance as yf
 tickers = ["XOM", "SHEL", "CVX", "TTE", "COP", "BP", "ENB", "EQNR"]
 
 # --- API Keys ---
-FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 
 # --- DATA FUNCTIES ---
 
@@ -23,7 +21,6 @@ def load_daily(ticker):
     except Exception as e:
         st.error(f"Fout bij laden koersdata voor {ticker}: {e}")
     return pd.DataFrame()
-
 
 @st.cache_data
 def load_cashflow(ticker):
@@ -44,22 +41,6 @@ def load_cashflow(ticker):
         st.error(f"Fout bij laden cashflow voor {ticker}: {e}")
     return pd.DataFrame()
 
-
-@st.cache_data
-def load_finnhub_profile(ticker, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={ticker}&token={api_key}"
-        r = requests.get(url, timeout=10)
-        data = r.json()
-        if data and "name" in data:
-            df = pd.DataFrame([data])
-            df["ticker"] = ticker
-            return df
-    except Exception as e:
-        st.error(f"Fout bij laden Finnhub profiel voor {ticker}: {e}")
-    return pd.DataFrame()
-
-
 # =====================
 # LOGIC & STATE
 # =====================
@@ -69,8 +50,6 @@ for t in tickers:
         st.session_state[f"daily_{t}"] = load_daily(t)
     if f"cashflow_{t}" not in st.session_state:
         st.session_state[f"cashflow_{t}"] = load_cashflow(t)
-    if f"finnhub_{t}" not in st.session_state:
-        st.session_state[f"finnhub_{t}"] = load_finnhub_profile(t, FINNHUB_KEY)
 
 all_daily = pd.concat([st.session_state[f"daily_{t}"] for t in tickers], ignore_index=True)
 all_cashflow = pd.concat([st.session_state[f"cashflow_{t}"] for t in tickers], ignore_index=True)
@@ -171,9 +150,16 @@ st.subheader("Quarterly Free Cash Flow")
 if not all_cashflow.empty:
     import plotly.graph_objects as go
 
+    selected_cf_tickers = st.multiselect(
+        "Selecteer bedrijven:",
+        options=tickers,
+        default=tickers,
+        key="cf_multiselect"
+    )
+
     fig_cf = go.Figure()
 
-    for t in tickers:
+    for t in selected_cf_tickers:
         df_t = all_cashflow[all_cashflow["ticker"] == t]
         if df_t.empty:
             continue
