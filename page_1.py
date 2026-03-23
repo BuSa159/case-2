@@ -3,15 +3,51 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 import time
-from datetime import datetime  # CRUCIALE FIX: Importeer de class direct
+from datetime import datetime
 
-# ── Configuratie ──────────────────────────────────────────────────────────────
+# ── 1. Configuratie ───────────────────────────────────────────────────────────
 TICKERS = ['XOM', 'CVX', 'SHEL', 'TTE', 'COP', 'BP', 'ENB', 'EQNR']
-kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
-            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
+kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E", "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
 kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(TICKERS)}
 
-# ── Data ophalen (gecached) ───────────────────────────────────────────────────
+# ── 2. Helper Functies ────────────────────────────────────────────────────────
+def calculate_safety_score(payout, cagr, streak):
+    """Berekent een score van 1 tot 10."""
+    score = 0
+    # Payout (Max 4 pnt)
+    if payout:
+        if payout < 50: score += 4
+        elif payout < 75: score += 2
+        elif payout < 90: score += 1
+    
+    # CAGR (Max 3 pnt)
+    if cagr:
+        if cagr > 8: score += 3
+        elif cagr > 4: score += 2
+        elif cagr > 0: score += 1
+    
+    # Streak (Max 3 pnt)
+    if streak:
+        if streak >= 20: score += 3
+        elif streak >= 10: score += 2
+        elif streak >= 5: score += 1
+        
+    return max(1, score)
+
+@st.cache_data(ttl=3600)
+def get_streak(ticker: str) -> int:
+    try:
+        stock = yf.Ticker(ticker)
+        divs = stock.dividends
+        if divs.empty: return 0
+        annual = divs.resample('YE').sum().sort_index()
+        streak, vals = 0, list(annual.values)
+        for i in range(len(vals) - 1, 0, -1):
+            if vals[i] >= vals[i - 1]: streak += 1
+            else: break
+        return streak
+    except: return 0
+
 @st.cache_data(ttl=3600)
 def get_dividend_data(tickers: tuple) -> pd.DataFrame:
     rows = []
@@ -19,148 +55,97 @@ def get_dividend_data(tickers: tuple) -> pd.DataFrame:
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            dividends = stock.dividends
-            if dividends.empty:
-                continue
+            divs = stock.dividends
+            if divs.empty: continue
             
-            dividends.index = dividends.index.tz_localize(None)
-            # Resample naar jaar-einde (YE)
-            annual_div = dividends.resample('YE').sum()
-
-            # Gebruik fast_info voor prijs, info voor EPS
+            divs.index = divs.index.tz_localize(None)
+            annual_div = divs.resample('YE').sum()
             info = stock.info
-            try:
-                current_price = stock.fast_info.last_price
-            except:
-                current_price = info.get('previousClose')
-            
+            price = stock.fast_info.last_price
             eps = info.get('trailingEps')
 
-            time.sleep(0.5) # Voorkom rate-limiting
-
-            for year, div_amount in annual_div.items():
-                year_int = year.year
-                div_yield = (div_amount / current_price * 100) if current_price else None
-
-                # Groei berekening
-                prev_year_ts = pd.Timestamp(year=year_int-1, month=12, day=31)
-                div_growth = None
-                if prev_year_ts in annual_div.index:
-                    prev_div = annual_div[prev_year_ts]
-                    div_growth = ((div_amount - prev_div) / prev_div * 100) if prev_div and prev_div > 0 else None
-
-                payout = (div_amount / eps * 100) if eps and eps > 0 else None
-
+            for year, amount in annual_div.items():
+                y_int = year.year
+                prev_ts = pd.Timestamp(year=y_int-1, month=12, day=31)
+                growth = ((amount - annual_div[prev_ts]) / annual_div[prev_ts] * 100) if prev_ts in annual_div.index and annual_div[prev_ts] > 0 else None
+                
                 rows.append({
-                    'Ticker': ticker,
-                    'Jaar': year_int,
-                    'Dividend ($)': round(div_amount, 2),
-                    'Div. Rendement (%)': round(div_yield, 2) if div_yield else None,
-                    'Div. Stijging (%)': round(div_growth, 2) if div_growth else None,
-                    'Payout Ratio (%)': round(payout, 2) if payout else None,
+                    'Ticker': ticker, 'Jaar': y_int, 'Dividend ($)': round(amount, 2),
+                    'Div. Rendement (%)': round(amount/price*100, 2) if price else None,
+                    'Div. Stijging (%)': round(growth, 2) if growth else None,
+                    'Payout Ratio (%)': round(amount/eps*100, 2) if eps and eps > 0 else None
                 })
-        except Exception as e:
-            st.warning(f"Fout bij ophalen data voor {ticker}: {e}")
-            continue
-
+        except: continue
     return pd.DataFrame(rows)
 
-def calculate_cagr(df_all, tickers):
-    """Berekent CAGR op basis van het laatste VOLLEDIGE jaar."""
-    current_year = datetime.now().year
-    cagr_list = []
+# ── 3. UI & Logica ────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Dividend Pro + Safety", layout="wide")
+st.title("🛡️ Dividend Safety & Growth Dashboard")
 
-    for ticker in tickers:
-        # Filter op ticker en negeer het huidige jaar voor de CAGR groei
-        sub = df_all[(df_all['Ticker'] == ticker) & (df_all['Jaar'] < current_year)].sort_values('Jaar')
-        if sub.empty: 
-            continue
-
-        last_full_year_row = sub.iloc[-1]
-        end_val = last_full_year_row['Dividend ($)']
-        end_year = last_full_year_row['Jaar']
-
-        res = {'Ticker': ticker}
-        for period in [3, 5, 10]:
-            start_year = end_year - period
-            start_row = sub[sub['Jaar'] == start_year]
-            
-            if not start_row.empty:
-                start_val = start_row['Dividend ($)'].values[0]
-                if start_val > 0:
-                    val = (pow((end_val / start_val), 1/period) - 1) * 100
-                    res[f'{period}j CAGR'] = round(val, 2)
-                else: res[f'{period}j CAGR'] = None
-            else: res[f'{period}j CAGR'] = None
-        cagr_list.append(res)
-    return pd.DataFrame(cagr_list)
-
-# ── Pagina opbouw ─────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Dividend Pro Dashboard", layout="wide")
-st.title("Dividend Analyse — Energie Sector")
-
-# ── Sidebar filter ────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Filters")
-    selected_tickers = st.multiselect("Selecteer aandelen:", options=TICKERS, default=TICKERS)
-    min_year, max_year = st.slider("Periode voor tabel/grafiek:", 2010, 2026, (2015, 2026))
+    sel_tickers = st.multiselect("Selecteer:", TICKERS, default=TICKERS)
+    years = st.slider("Periode:", 2010, 2026, (2015, 2026))
 
-if not selected_tickers:
-    st.warning("Selecteer minimaal één aandeel.")
-    st.stop()
+df_all = get_dividend_data(tuple(sel_tickers))
+curr_year = datetime.now().year
 
-# ── Data laden ────────────────────────────────────────────────────────────────
-with st.spinner("Data ophalen van Yahoo Finance..."):
-    df_all = get_dividend_data(tuple(selected_tickers))
-
-if df_all.empty:
-    st.error("Geen data gevonden.")
-    st.stop()
-
-# ── CAGR Sectie ───────────────────────────────────────────────────────────────
-st.subheader("Structurele Groei (CAGR)")
-st.caption("Gemiddelde groei per jaar over de laatste volledige kalenderjaren.")
-df_cagr = calculate_cagr(df_all, selected_tickers)
-
-if not df_cagr.empty:
-    # Toon metrics voor 5-jaars groei
-    m_cols = st.columns(len(df_cagr))
-    for idx, row in df_cagr.iterrows():
-        with m_cols[idx]:
-            val = row['5j CAGR']
-            st.metric(row['Ticker'], f"{val}%" if val else "N/A", "5j CAGR")
+# --- Samenvatting Tabel met Safety Score ---
+st.subheader("Dividend Kwaliteit Analyse")
+summary_data = []
+for t in sel_tickers:
+    sub_full = df_all[(df_all['Ticker'] == t) & (df_all['Jaar'] < curr_year)].sort_values('Jaar')
+    if sub_full.empty: continue
     
-    st.table(df_cagr.set_index('Ticker'))
+    latest = sub_full.iloc[-1]
+    # CAGR 5j
+    start_row = sub_full[sub_full['Jaar'] == (latest['Jaar'] - 5)]
+    cagr5 = round((pow((latest['Dividend ($)'] / start_row['Dividend ($)'].values[0]), 1/5) - 1) * 100, 2) if not start_row.empty else None
+    
+    streak = get_streak(t)
+    safety = calculate_safety_score(latest['Payout Ratio (%)'], cagr5, streak)
+    
+    summary_data.append({
+        'Ticker': t, 'Safety Score': safety, 'Yield': f"{latest['Div. Rendement (%)']}%",
+        '5j CAGR': f"{cagr5}%" if cagr5 else "N/A", 'Streak': f"{streak} jr", 'Status': "✅ Veilig" if safety > 7 else "⚠️ Oppassen" if safety > 4 else "🚨 Hoog Risico"
+    })
 
+st.table(pd.DataFrame(summary_data).set_index('Ticker'))
+
+# ── 4. Visualisaties ──────────────────────────────────────────────────────────
 st.divider()
+df_f = df_all[(df_all['Ticker'].isin(sel_tickers)) & (df_all['Jaar'].between(years[0], years[1]))]
+c1, c2 = st.columns(2)
 
-# ── Grafieken en Tabel ────────────────────────────────────────────────────────
-# Filter de data voor de weergave
-df_filtered = df_all[
-    (df_all['Ticker'].isin(selected_tickers)) & 
-    (df_all['Jaar'] >= min_year) & 
-    (df_all['Jaar'] <= max_year)
-].sort_values(['Ticker', 'Jaar'], ascending=[True, False])
+with c1:
+    fig = go.Figure()
+    for t in sel_tickers:
+        sub = df_f[df_f['Ticker'] == t].sort_values('Jaar')
+        fig.add_trace(go.Bar(x=sub['Jaar'], y=sub['Dividend ($)'], name=t, marker_color=kleur_map.get(t)))
+    fig.update_layout(title="Dividend per Jaar ($)", barmode='group', height=350, plot_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig, use_container_width=True)
 
-col_l, col_r = st.columns(2)
+with c2:
+    fig = go.Figure()
+    for t in sel_tickers:
+        sub = df_f[df_f['Ticker'] == t].sort_values('Jaar')
+        fig.add_trace(go.Scatter(x=sub['Jaar'], y=sub['Div. Rendement (%)'], name=t, mode='lines+markers'))
+    fig.update_layout(title="Yield (%)", height=350, plot_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig, use_container_width=True)
 
-with col_l:
-    st.subheader("Dividend Historie ($)")
-    fig_bar = go.Figure()
-    for t in selected_tickers:
-        sub = df_filtered[df_filtered['Ticker'] == t].sort_values('Jaar')
-        fig_bar.add_trace(go.Bar(x=sub['Jaar'], y=sub['Dividend ($)'], name=t, marker_color=kleur_map.get(t)))
-    fig_bar.update_layout(barmode='group', height=350)
-    st.plotly_chart(fig_bar, use_container_width=True)
+# ── 5. Detailtabel met Styling ────────────────────────────────────────────────
+st.subheader("Historische Data")
+df_display = df_f.sort_values(['Ticker', 'Jaar'], ascending=[True, False])
 
-with col_r:
-    st.subheader("Dividendrendement (%)")
-    fig_line = go.Figure()
-    for t in selected_tickers:
-        sub = df_filtered[df_filtered['Ticker'] == t].sort_values('Jaar')
-        fig_line.add_trace(go.Scatter(x=sub['Jaar'], y=sub['Div. Rendement (%)'], name=t, mode='lines+markers'))
-    fig_line.update_layout(height=350)
-    st.plotly_chart(fig_line, use_container_width=True)
+def style_df(v, col):
+    if col == 'Div. Stijging (%)' and pd.notna(v):
+        return 'color: #1D9E75; font-weight:bold' if v > 0 else 'color: #D85A30'
+    if col == 'Payout Ratio (%)' and pd.notna(v):
+        return 'color: #D85A30' if v > 80 else 'color: #1D9E75'
+    return ''
 
-st.subheader("Details per jaar")
-st.dataframe(df_filtered, use_container_width=True)
+st.dataframe(
+    df_display.style.apply(lambda x: [style_df(v, x.name) for v in x], axis=0)
+    .format({'Dividend ($)': '${:.2f}', 'Div. Rendement (%)': '{:.2f}%', 'Div. Stijging (%)': '{:.1f}%', 'Payout Ratio (%)': '{:.1f}%'}, na_rep='—'),
+    use_container_width=True
+)
