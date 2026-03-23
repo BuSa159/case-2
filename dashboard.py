@@ -3,39 +3,26 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import time
+import yfinance as yf
 
 tickers = ["XOM", "SHEL", "CVX", "TTE"]
 
 # --- API Keys ---
 FINNHUB_KEY = "d6okk81r01qnu98if63gd6okk81r01qnu98if640"
 FMP_KEY = "43a39GW86qFEdUpYJ3crtC8CCpa88yrz"
-ALPHA_VANTAGE_KEY = "046SOW0RCBGPECLG"
 
 # --- DATA FUNCTIES ---
 
 @st.cache_data
-def load_alpha_vantage_daily(ticker, api_key):
+def load_daily(ticker):
     try:
-        url = (
-            f"https://www.alphavantage.co/query"
-            f"?function=TIME_SERIES_DAILY&symbol={ticker}&outputsize=compact&apikey={api_key}"
-        )
-        r = requests.get(url, timeout=10)
-        data = r.json()
-        ts = data.get("Time Series (Daily)", {})
-        if ts:
-            records = [
-                {"date": pd.to_datetime(date), "close_price": float(values["4. close"]), "ticker": ticker}
-                for date, values in ts.items()
-            ]
-            df = pd.DataFrame(records)
-            df = df.sort_values("date").reset_index(drop=True)
-            return df
-        else:
-            st.error(f"Geen Alpha Vantage data voor {ticker}: {data.get('Note', data.get('Information', 'Onbekende fout'))}")
+        df = yf.download(ticker, period="1y", auto_adjust=True, progress=False)
+        df = df[["Close"]].reset_index()
+        df.columns = ["date", "close_price"]
+        df["ticker"] = ticker
+        return df
     except Exception as e:
-        st.error(f"Fout bij laden Alpha Vantage data voor {ticker}: {e}")
+        st.error(f"Fout bij laden koersdata voor {ticker}: {e}")
     return pd.DataFrame()
 
 
@@ -43,25 +30,6 @@ def load_alpha_vantage_daily(ticker, api_key):
 def load_fmp_overview(ticker, api_key):
     # Tijdelijk uitgeschakeld om API call limiet te voorkomen
     return pd.DataFrame()
-
-    # try:
-    #     url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={api_key}"
-    #     r = requests.get(url, timeout=10)
-    #     data = r.json()
-    #     if isinstance(data, list) and len(data) > 0:
-    #         df = pd.DataFrame(data)
-    #         df["ticker"] = ticker
-    #         cols_to_rename = {
-    #             "companyName": "Name",
-    #             "mktCap": "MarketCapitalization",
-    #             "sector": "Sector",
-    #             "sharesOutstanding": "SharesOutstanding"
-    #         }
-    #         df = df.rename(columns=cols_to_rename)
-    #         return df
-    # except Exception as e:
-    #     st.error(f"Fout bij laden overzicht voor {ticker}: {e}")
-    # return pd.DataFrame()
 
 
 @st.cache_data
@@ -101,14 +69,9 @@ def load_finnhub_profile(ticker, api_key):
 # LOGIC & STATE
 # =====================
 
-# Alpha Vantage: max 2 calls per seconde
-for i, t in enumerate(tickers):
-    if f"daily_{t}" not in st.session_state:
-        st.session_state[f"daily_{t}"] = load_alpha_vantage_daily(t, ALPHA_VANTAGE_KEY)
-        if i % 2 == 1:  # Na elke 2 calls even wachten
-            time.sleep(1)
-
 for t in tickers:
+    if f"daily_{t}" not in st.session_state:
+        st.session_state[f"daily_{t}"] = load_daily(t)
     if f"overview_{t}" not in st.session_state:
         st.session_state[f"overview_{t}"] = load_fmp_overview(t, FMP_KEY)
     if f"earnings_{t}" not in st.session_state:
@@ -140,18 +103,11 @@ with center_col:
     st.markdown("<h1 style='text-align: center;'>💹 Multi-Stock Analysis Dashboard</h1>", unsafe_allow_html=True)
     st.image("wjack money.png", caption="Wasted time")
 
-with st.sidebar:
-    st.header("Instellingen")
-    selected_ticker = st.selectbox("Selecteer ticker voor metrics:", tickers)
-    if st.button("🔄 Cache herladen"):
-        st.cache_data.clear()
-        st.rerun()
-
 st.divider()
 
 # --- BOVENSTE RIJ: Dynamische Metric kaarten ---
 if not all_overviews.empty:
-    ticker_data = all_overviews[all_overviews['ticker'] == selected_ticker]
+    ticker_data = all_overviews[all_overviews['ticker'] == tickers[0]]
 
     if not ticker_data.empty:
         profile = ticker_data.iloc[0]
@@ -166,8 +122,6 @@ if not all_overviews.empty:
         with m4:
             shares = float(profile.get("SharesOutstanding", 0))
             st.metric("Aandelen (M)", f"{shares / 1e6:.1f}M")
-    else:
-        st.warning(f"Geen detaildata voor {selected_ticker}")
 
 st.divider()
 
@@ -177,24 +131,30 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.subheader("Koers informatie")
     if not all_daily.empty:
+        df_filtered = all_daily.copy()
+        today = pd.Timestamp.today()
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+
         periode = st.select_slider(
             "Tijdsperiode",
             options=["Alles", "Laatste 3 maanden", "Laatste maand"],
             value="Alles"
         )
 
-        df_filtered = all_daily.copy()
-        today = pd.Timestamp.today()
-
         if periode == "Laatste 3 maanden":
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=3)]
         elif periode == "Laatste maand":
             df_filtered = df_filtered[df_filtered["date"] >= today - pd.DateOffset(months=1)]
 
-        fig, ax = plt.subplots(figsize=(8, 5))
-        sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+        if periode != "Alles":
+            fig2, ax2 = plt.subplots(figsize=(8, 5))
+            sns.lineplot(data=df_filtered, x="date", y="close_price", hue="ticker", ax=ax2)
+            plt.xticks(rotation=45)
+            st.pyplot(fig2)
     else:
         st.info("Geen koersdata beschikbaar.")
 
@@ -218,8 +178,3 @@ if not all_earnings.empty:
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
-
-# Debugging
-# st.divider()
-# st.write(all_earnings.columns.tolist())
-# st.write(all_daily.columns.tolist())
