@@ -179,3 +179,11 @@ if not all_earnings.empty:
     st.pyplot(fig)
 else:
     st.info("Geen winst data beschikbaar.")
+
+st.divider()
+st.write("### Debug: Earnings")
+for t in tickers:
+    df = st.session_state.get(f"earnings_{t}")
+    st.write(f"**{t}:** {len(df) if df is not None and not df.empty else 'LEEG'} rijen")
+    if df is not None and not df.empty:
+        st.write(df.head(2))
