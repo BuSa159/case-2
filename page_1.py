@@ -103,7 +103,7 @@ with st.sidebar:
     )
     min_year, max_year = st.slider(
         "Periode:",
-        min_value=2010,
+        min_value=2015,
         max_value=2024,
         value=(2015, 2024),
     )
@@ -146,7 +146,6 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Gem. dividendrendement",  f"{avg_yield:.1f}%"  if pd.notna(avg_yield)  else "—", "vs. S&P500 ~1.3%")
 col2.metric("Gem. dividendgroei (YoY)", f"{avg_growth:.1f}%" if pd.notna(avg_growth) else "—")
 col3.metric("Gem. payout ratio",        f"{avg_payout:.0f}%" if pd.notna(avg_payout) else "—")
-col4.metric("Langste dividend streak",  f"{max_streak} jr",  max_ticker)
  
 st.divider()
  
