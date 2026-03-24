@@ -90,6 +90,12 @@ selected_symbol = st.sidebar.selectbox(
     format_func=lambda x: f"{x} ({TICKERS[x]})"
 )
 
+# ── Cache reset knop (NIEUW) ──────────────────────────────────────────────────
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Cache wissen & herladen"):
+    st.cache_data.clear()
+    st.rerun()
+
 if selected_symbol:
     data = get_full_data(selected_symbol)
 
@@ -129,7 +135,7 @@ if selected_symbol:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ── 5. INTRINSIEKE WAARDE TABEL (DCF-model uit Excel) ────────────────────────
+# ── 5. INTRINSIEKE WAARDE TABEL (DCF-model) ───────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
 
 st.divider()
@@ -144,25 +150,25 @@ st.caption(
 st.sidebar.markdown("---")
 st.sidebar.header("DCF Parameters")
 
-discount_rate  = st.sidebar.number_input("Discontovoet (%)", value=10.0, step=0.5) / 100
+discount_rate = st.sidebar.number_input("Discontovoet (%)", value=10.0, step=0.5) / 100
 
 # Scenario 1 – Normaal
 st.sidebar.subheader("Scenario 1 – Normaal")
-g1_y1_5   = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=7.0,  step=0.5, key="g1a") / 100
-g1_y6_10  = st.sidebar.number_input("Groei jaar 6–10 (%)", value=5.0,  step=0.5, key="g1b") / 100
-mult1     = st.sidebar.number_input("Terminal multiple",    value=15.0, step=1.0, key="m1")
+g1_y1_5  = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=7.0,  step=0.5, key="g1a") / 100
+g1_y6_10 = st.sidebar.number_input("Groei jaar 6–10 (%)", value=5.0,  step=0.5, key="g1b") / 100
+mult1    = st.sidebar.number_input("Terminal multiple",    value=15.0, step=1.0, key="m1")
 
 # Scenario 2 – Best
 st.sidebar.subheader("Scenario 2 – Best")
-g2_y1_5   = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=12.0, step=0.5, key="g2a") / 100
-g2_y6_10  = st.sidebar.number_input("Groei jaar 6–10 (%)", value=8.0,  step=0.5, key="g2b") / 100
-mult2     = st.sidebar.number_input("Terminal multiple",    value=20.0, step=1.0, key="m2")
+g2_y1_5  = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=12.0, step=0.5, key="g2a") / 100
+g2_y6_10 = st.sidebar.number_input("Groei jaar 6–10 (%)", value=8.0,  step=0.5, key="g2b") / 100
+mult2    = st.sidebar.number_input("Terminal multiple",    value=20.0, step=1.0, key="m2")
 
 # Scenario 3 – Worst
 st.sidebar.subheader("Scenario 3 – Worst")
-g3_y1_5   = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=2.0,  step=0.5, key="g3a") / 100
-g3_y6_10  = st.sidebar.number_input("Groei jaar 6–10 (%)", value=0.0,  step=0.5, key="g3b") / 100
-mult3     = st.sidebar.number_input("Terminal multiple",    value=10.0, step=1.0, key="m3")
+g3_y1_5  = st.sidebar.number_input("Groei jaar 1–5 (%)",  value=2.0,  step=0.5, key="g3a") / 100
+g3_y6_10 = st.sidebar.number_input("Groei jaar 6–10 (%)", value=0.0,  step=0.5, key="g3b") / 100
+mult3    = st.sidebar.number_input("Terminal multiple",    value=10.0, step=1.0, key="m3")
 
 
 # ── DCF hulpfunctie ───────────────────────────────────────────────────────────
@@ -173,10 +179,15 @@ def dcf_intrinsic_value(eps_base, payout_ratio, g_y1_5, g_y6_10, terminal_mult, 
     Terminal value = cashflow jaar 10 * terminal_mult.
     Alles verdisconteert met disc_rate.
     """
-    if eps_base is None or np.isnan(eps_base) or eps_base <= 0:
+    if eps_base is None or np.isnan(eps_base):
         return np.nan
 
-    cf0 = eps_base * payout_ratio if payout_ratio > 0 else eps_base
+    # Gebruik absolute waarde zodat tijdelijk negatieve EPS geen None geeft
+    eps_base = abs(eps_base)
+    if eps_base == 0:
+        return np.nan
+
+    cf0 = eps_base * payout_ratio if payout_ratio and payout_ratio > 0 else eps_base
 
     pv_total = 0.0
     cf = cf0
@@ -190,74 +201,89 @@ def dcf_intrinsic_value(eps_base, payout_ratio, g_y1_5, g_y6_10, terminal_mult, 
     return pv_total
 
 
-# ── Data ophalen voor alle tickers ───────────────────────────────────────────
-@st.cache_data(ttl=3600)
+# ── FIX: Verbeterde get_fundamentals met retry-logica ────────────────────────
+@st.cache_data(ttl=1800)
 def get_fundamentals(ticker_symbol):
     """
-    Haalt fundamentele data op via yfinance met meerdere fallbacks.
-    - trailingPE: probeer ook zelf te berekenen uit price / trailingEps
-    - dividendYield: probeer ook lastDividendValue / price
-    - payoutRatio: probeer ook dividendRate / (trailingEps) als fallback
+    Haalt fundamentele data op via yfinance.
+    - 3 pogingen met toenemende vertraging
+    - Betere fallbacks voor payout_ratio, dividendYield en PE
+    - Accepteert ook negatieve EPS (abs() in DCF)
     """
-    try:
-        t    = yf.Ticker(ticker_symbol)
-        info = t.info
+    for attempt in range(3):
+        try:
+            time.sleep(random.uniform(0.8 + attempt, 1.8 + attempt))
+            t    = yf.Ticker(ticker_symbol)
+            info = t.info
 
-        if not info or len(info) < 5:
+            # Prijs ophalen met meerdere fallbacks
+            price = (
+                info.get('currentPrice')
+                or info.get('regularMarketPrice')
+                or info.get('previousClose')
+            )
+
+            # EPS ophalen
+            eps = info.get('trailingEps')
+
+            # Als zowel prijs als EPS None zijn: data is leeg, opnieuw proberen
+            if price is None and eps is None:
+                if attempt < 2:
+                    time.sleep(3)
+                    continue
+                else:
+                    return None
+
+            # P/E – bereken zelf als niet beschikbaar
+            pe = info.get('trailingPE')
+            if pe is None and eps and eps != 0 and price:
+                pe = price / eps
+
+            # Dividendrendement
+            div_yield_raw = info.get('dividendYield') or 0
+            if div_yield_raw == 0:
+                div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
+                if div_rate and price and price > 0:
+                    div_yield_raw = div_rate / price
+            # yfinance geeft soms decimaal (0.035), soms al % (3.5)
+            div_yield_pct = div_yield_raw if div_yield_raw > 0.5 else div_yield_raw * 100
+
+            # Pay-out ratio met meerdere fallbacks
+            payout_ratio = info.get('payoutRatio') or 0
+            if payout_ratio == 0 and eps and eps != 0:
+                div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
+                if div_rate:
+                    payout_ratio = abs(div_rate / eps)  # abs() bij negatieve EPS
+            # Fallback: als nog steeds 0, gebruik 50% als conservatieve schatting
+            if payout_ratio == 0 or payout_ratio is None:
+                payout_ratio = 0.5
+
+            # Cap payout ratio op 1.5 (150%) om extreme waarden te vermijden
+            payout_ratio = min(payout_ratio, 1.5)
+
+            return {
+                'price':        price,
+                'pe':           pe,
+                'div_yield':    div_yield_pct,
+                'payout_ratio': payout_ratio,
+                'eps':          eps,
+            }
+
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(3)
+                continue
             return None
 
-        # Prijs
-        price = (info.get('currentPrice')
-                 or info.get('regularMarketPrice')
-                 or info.get('previousClose'))
-
-        # EPS
-        eps = info.get('trailingEps')
-
-        # P/E – bereken zelf als niet beschikbaar
-        pe = info.get('trailingPE')
-        if pe is None and eps and eps > 0 and price:
-            pe = price / eps
-
-        # Dividendrendement (als decimaal → omzetten naar %)
-        div_yield_raw = info.get('dividendYield') or 0
-        if div_yield_raw == 0:
-            # Fallback: jaarlijks dividend / prijs
-            div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
-            if div_rate and price:
-                div_yield_raw = div_rate / price
-        # yfinance soms decimaal (0.035) soms al percentage (3.5) afhankelijk van ticker
-        # Als waarde > 0.5, is het al een percentage; anders vermenigvuldigen met 100
-        if div_yield_raw > 0.5:
-            div_yield_pct = div_yield_raw   # al in %
-        else:
-            div_yield_pct = div_yield_raw * 100  # decimaal naar %
-
-        # Pay-out ratio – bereken zelf als niet beschikbaar
-        payout_ratio = info.get('payoutRatio') or 0
-        if payout_ratio == 0 and eps and eps > 0:
-            div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
-            if div_rate:
-                payout_ratio = div_rate / eps
-
-        return {
-            'price':        price,
-            'pe':           pe,
-            'div_yield':    div_yield_pct,
-            'payout_ratio': payout_ratio,
-            'eps':          eps,
-        }
-    except Exception as e:
-        return None
+    return None
 
 
-# ── Tabel opbouwen ────────────────────────────────────────────────────────────
+# ── Data ophalen voor alle tickers ────────────────────────────────────────────
 rows = []
 
 progress = st.progress(0, text="Fundamentele data ophalen…")
 for i, (ticker, name) in enumerate(TICKERS.items()):
     progress.progress((i + 1) / len(TICKERS), text=f"Laden: {ticker}")
-    time.sleep(0.3)
 
     fund = get_fundamentals(ticker)
     if fund is None:
@@ -273,10 +299,10 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
         })
         continue
 
-    pe          = fund['pe']
-    div_yield   = fund['div_yield']
-    payout      = fund['payout_ratio']
-    eps         = fund['eps']
+    pe        = fund['pe']
+    div_yield = fund['div_yield']
+    payout    = fund['payout_ratio']
+    eps       = fund['eps']
 
     # Business return = earnings yield + dividend yield
     business_return = (100 / pe + div_yield) if pe and pe > 0 else None
@@ -296,8 +322,8 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
         'K/W':                    round(pe, 1) if pe else None,
         'Div. Rendement (%)':     round(div_yield, 2),
         'Business Return (%)':    round(business_return, 2) if business_return else None,
-        'Waardering Normaal ($)': round(val_norm, 2) if val_norm and not np.isnan(val_norm) else None,
-        'Waardering Best ($)':    round(val_best, 2) if val_best and not np.isnan(val_best) else None,
+        'Waardering Normaal ($)': round(val_norm,  2) if val_norm  and not np.isnan(val_norm)  else None,
+        'Waardering Best ($)':    round(val_best,  2) if val_best  and not np.isnan(val_best)  else None,
         'Waardering Worst ($)':   round(val_worst, 2) if val_worst and not np.isnan(val_worst) else None,
         'Gewogen Gem. ($)':       round(weighted_avg, 2) if weighted_avg else None,
         'Huidige Koers ($)':      round(fund['price'], 2) if fund['price'] else None,
@@ -306,6 +332,7 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
 progress.empty()
 
 df_result = pd.DataFrame(rows)
+
 
 # ── Styling: kleur op basis van upside/downside t.o.v. huidige prijs ─────────
 def color_value(val, price):
@@ -318,22 +345,8 @@ def color_value(val, price):
     return ''
 
 
-# Voeg huidige koers toe voor de kleurlogica (niet tonen in tabel)
-@st.cache_data(ttl=3600)
-def get_current_prices():
-    prices = {}
-    for tkr in TICKERS:
-        try:
-            info = yf.Ticker(tkr).info
-            prices[tkr] = info.get('currentPrice') or info.get('regularMarketPrice')
-        except Exception:
-            prices[tkr] = None
-    return prices
-
-current_prices = get_current_prices()
-
 def style_row(row):
-    price = current_prices.get(row['Ticker'])
+    price = row['Huidige Koers ($)']
     styles = [''] * len(row)
     val_cols = ['Waardering Normaal ($)', 'Waardering Best ($)', 'Waardering Worst ($)', 'Gewogen Gem. ($)']
     for col in val_cols:
@@ -342,7 +355,8 @@ def style_row(row):
             styles[idx] = color_value(row[col], price)
     return styles
 
-# ── Debug expander: toon ruwe yfinance data ──────────────────────────────────
+
+# ── Debug expander: toon ruwe yfinance data ───────────────────────────────────
 with st.expander("🔍 Debug – ruwe yfinance data per ticker"):
     debug_rows = []
     for tkr in TICKERS:
@@ -385,26 +399,28 @@ st.dataframe(styled, use_container_width=True, height=380)
 st.caption(
     "🟢 Groen = intrinsieke waarde >10% boven huidige koers (mogelijk ondergewaardeerd)  |  "
     "🔴 Rood = intrinsieke waarde >10% onder huidige koers (mogelijk overgewaardeerd)  |  "
-    "Pay-out ratio = meest recente waarde van yfinance  |  "
+    "Pay-out ratio = meest recente waarde van yfinance (fallback: 50%)  |  "
     "DCF op basis van Trailing EPS × Pay-out ratio als startcashflow"
 )
 
 # ── Detail per aandeel ────────────────────────────────────────────────────────
 st.subheader("🔍 Detail – Cashflow per scenario")
-detail_ticker = st.selectbox("Selecteer aandeel voor detail:", list(TICKERS.keys()),
-                              format_func=lambda x: f"{x} ({TICKERS[x]})", key="detail")
+detail_ticker = st.selectbox(
+    "Selecteer aandeel voor detail:", list(TICKERS.keys()),
+    format_func=lambda x: f"{x} ({TICKERS[x]})", key="detail"
+)
 
 fund_detail = get_fundamentals(detail_ticker)
 if fund_detail and fund_detail['eps']:
-    eps_d   = fund_detail['eps']
+    eps_d    = fund_detail['eps']
     payout_d = fund_detail['payout_ratio']
-    cf0_d   = eps_d * payout_d if payout_d > 0 else eps_d
-    years   = list(range(1, 11))
+    cf0_d    = abs(eps_d) * payout_d if payout_d and payout_d > 0 else abs(eps_d)
+    years    = list(range(1, 11))
 
     scenarios = {
-        'Normaal':  (g1_y1_5, g1_y6_10, mult1),
-        'Best':     (g2_y1_5, g2_y6_10, mult2),
-        'Worst':    (g3_y1_5, g3_y6_10, mult3),
+        'Normaal': (g1_y1_5, g1_y6_10, mult1),
+        'Best':    (g2_y1_5, g2_y6_10, mult2),
+        'Worst':   (g3_y1_5, g3_y6_10, mult3),
     }
 
     fig_cf = go.Figure()
@@ -428,8 +444,7 @@ if fund_detail and fund_detail['eps']:
 
     col1, col2, col3 = st.columns(3)
     col1.metric("EPS (trailing)", f"${eps_d:.2f}")
-    col2.metric("Pay-out ratio", f"{payout_d * 100:.1f}%" if payout_d else "n.b.")
+    col2.metric("Pay-out ratio",  f"{payout_d * 100:.1f}%" if payout_d else "n.b.")
     col3.metric("Start cashflow", f"${cf0_d:.2f}")
 else:
     st.info("Geen EPS-data beschikbaar voor dit aandeel.")
-
