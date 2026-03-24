@@ -131,3 +131,8 @@ if not df_bubble.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Selecteer minimaal één bedrijf.")
+
+st.divider()
+_, center_colie, _ = st.columns([1, 2, 1])
+with center_colie:
+    st.image("wjack money.png", caption="meme")

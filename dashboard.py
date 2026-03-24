@@ -78,11 +78,11 @@ _, center_col, _ = st.columns([1, 2, 1])
 with center_col:
     st.markdown("<h1 style='text-align: center;'>Financieel Energie Dashboard</h1>", unsafe_allow_html=True)
 
-_, center_col1, _ = st.columns([1, 2, 1])
+_, center_col1, _ = st.columns([0.5, 3, 0.5])
 with center_col1:
     st.markdown("""
         <h2 style='text-align: center;'>🎈🎈🎈 Hallo en welkom bij het financieel energie dashboard 🎈🎈🎈</h2>
-        <p style='text-align: center; font-size: 18px; line-height: 2;'>
+        <p style='text-align: center; font-size: 18px; line-height: 2.5;'>
             In deze Streamlit omgeving worden 8 verschillende energie bedrijven bestudeerd.<br>
             Op de meerdere pagina's wordt er gekeken naar verschillende aspecten van de energie bedrijven.<br>
             Waaronder wat meer bedrijfsinformatie, een analyse van het dividend en een voorspeller voor aandelen.<br>
