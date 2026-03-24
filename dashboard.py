@@ -142,7 +142,7 @@ with col_right:
         else:
             st.info("Selecteer minimaal één bedrijf.")
     else:
-        st.info("Laad eerst pagina 2 om marktkapitalisatie data in te laden.")
+        st.info("Laad eerst pagina Bedrijfsinfo om marktkapitalisatie data in te laden.")
 
 # --- GRAFIEK RIJ 2 ---
 st.divider()
