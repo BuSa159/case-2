@@ -6,8 +6,6 @@ import yfinance as yf
 
 tickers = ["XOM", "SHEL", "CVX", "TTE", "COP", "BP", "ENB", "EQNR"]
 
-# --- API Keys ---
-
 # --- DATA FUNCTIES ---
 
 @st.cache_data
@@ -66,8 +64,7 @@ for t in tickers:
 df_market_cap = pd.DataFrame(market_cap_data)
 
 # Centrale kleurmap — elke ticker krijgt een vaste kleur
-kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E",
-            "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
+kleurset = ["#2E86AB", "#E84855", "#F9C74F", "#6A994E", "#9B5DE5", "#F15BB5", "#00BBF9", "#00F5D4"]
 kleur_map = {t: kleurset[i % len(kleurset)] for i, t in enumerate(tickers)}
 
 # =====================
