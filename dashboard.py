@@ -81,7 +81,7 @@ with center_col:
 _, center_col1, _ = st.columns([0.5, 3, 0.5])
 with center_col1:
     st.markdown("""
-        <h2 style='text-align: center;'>🎈🎈🎈 Hallo en welkom bij het financieel energie dashboard 🎈🎈🎈</h2>
+        <h2 style='text-align: center;'>🎈🎈 Hallo en welkom bij het financieel energie dashboard 🎈🎈</h2>
         <p style='text-align: center; font-size: 18px; line-height: 2.5;'>
             In deze Streamlit omgeving worden 8 verschillende energie bedrijven bestudeerd.<br>
             Op de meerdere pagina's wordt er gekeken naar verschillende aspecten van de energie bedrijven.<br>
