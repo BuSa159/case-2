@@ -118,7 +118,7 @@ st.title("Energy Sector Dividend Intelligence")
 
 with st.sidebar:
     st.header("Instellingen")
-    sel_tickers = st.multiselect("Selecteer Tickers:", TICKERS, default=['XOM', 'CVX', 'SHEL'])
+    sel_tickers = st.multiselect("Selecteer Tickers:", TICKERS, default=list(TICKERS.keys()))
     # Verbreed de slider tot het huidige jaar
     years = st.slider("Periode in grafiek:", 2005, datetime.now().year, (2015, datetime.now().year))
 
