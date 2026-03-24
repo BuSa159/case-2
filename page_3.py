@@ -226,7 +226,12 @@ def get_fundamentals(ticker_symbol):
             div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
             if div_rate and price:
                 div_yield_raw = div_rate / price
-        div_yield_pct = div_yield_raw * 100
+        # yfinance soms decimaal (0.035) soms al percentage (3.5) afhankelijk van ticker
+        # Als waarde > 0.5, is het al een percentage; anders vermenigvuldigen met 100
+        if div_yield_raw > 0.5:
+            div_yield_pct = div_yield_raw   # al in %
+        else:
+            div_yield_pct = div_yield_raw * 100  # decimaal naar %
 
         # Pay-out ratio – bereken zelf als niet beschikbaar
         payout_ratio = info.get('payoutRatio') or 0
@@ -264,6 +269,7 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
             'Waardering Best ($)': None,
             'Waardering Worst ($)': None,
             'Gewogen Gem. ($)': None,
+            'Huidige Koers ($)': None,
         })
         continue
 
@@ -294,6 +300,7 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
         'Waardering Best ($)':    round(val_best, 2) if val_best and not np.isnan(val_best) else None,
         'Waardering Worst ($)':   round(val_worst, 2) if val_worst and not np.isnan(val_worst) else None,
         'Gewogen Gem. ($)':       round(weighted_avg, 2) if weighted_avg else None,
+        'Huidige Koers ($)':      round(fund['price'], 2) if fund['price'] else None,
     })
 
 progress.empty()
@@ -368,6 +375,7 @@ styled = (
         'Waardering Best ($)':    '${:.2f}',
         'Waardering Worst ($)':   '${:.2f}',
         'Gewogen Gem. ($)':       '${:.2f}',
+        'Huidige Koers ($)':      '${:.2f}',
     }, na_rep='n.b.')
 )
 
@@ -424,3 +432,4 @@ if fund_detail and fund_detail['eps']:
     col3.metric("Start cashflow", f"${cf0_d:.2f}")
 else:
     st.info("Geen EPS-data beschikbaar voor dit aandeel.")
+
