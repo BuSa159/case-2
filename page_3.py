@@ -90,7 +90,7 @@ selected_symbol = st.sidebar.selectbox(
     format_func=lambda x: f"{x} ({TICKERS[x]})"
 )
 
-# ── Cache reset knop (NIEUW) ──────────────────────────────────────────────────
+# ── Cache reset knop ──────────────────────────────────────────────────────────
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Cache wissen & herladen"):
     st.cache_data.clear()
@@ -124,11 +124,52 @@ if selected_symbol:
             st.plotly_chart(fig_p, use_container_width=True)
 
         with tab2:
-            st.write(f"**Model Score (R²): {r_r2:.4f}** (Lage score, maar realistischer voor trading)")
+            # ── TIJDVENSTER SLIDER ─────────────────────────────────────────────
+            window_options = {
+                "Alles":      None,
+                "1 jaar":     365,
+                "6 maanden":  182,
+                "3 maanden":  91,
+                "1 maand":    30,
+            }
+            selected_window = st.select_slider(
+                "📅 Tijdvenster",
+                options=list(window_options.keys()),
+                value="Alles",
+            )
+
+            # Filter de testdata op het gekozen tijdvenster
+            days = window_options[selected_window]
+            if days is not None:
+                cutoff = pd.Timestamp(datetime.now() - timedelta(days=days))
+                mask = y_r_test.index >= cutoff
+                y_r_filtered = y_r_test[mask]
+                r_preds_filtered = r_preds[mask]
+            else:
+                y_r_filtered = y_r_test
+                r_preds_filtered = r_preds
+
+            # Herbereken R² voor het gefilterde venster
+            if len(y_r_filtered) > 1:
+                r2_filtered = r2_score(y_r_filtered, r_preds_filtered)
+                st.write(f"**Model Score (R²): {r2_filtered:.4f}** (Lage score, maar realistischer voor trading) — venster: *{selected_window}*")
+            else:
+                st.warning("Te weinig datapunten in dit tijdvenster.")
+                r2_filtered = None
+
             fig_r = go.Figure()
-            fig_r.add_trace(go.Scatter(x=y_r_test.index, y=y_r_test, name="Echte Return", line=dict(color="#6A994E")))
-            fig_r.add_trace(go.Scatter(x=y_r_test.index, y=r_preds, name="AI Return Voorspelling", line=dict(color="#F9C74F")))
-            fig_r.update_layout(template="plotly_dark", height=450, title="Dagelijkse Rendementen (Focus op volatiliteit)")
+            fig_r.add_trace(go.Scatter(
+                x=y_r_filtered.index, y=y_r_filtered,
+                name="Echte Return", line=dict(color="#6A994E")
+            ))
+            fig_r.add_trace(go.Scatter(
+                x=y_r_filtered.index, y=r_preds_filtered,
+                name="AI Return Voorspelling", line=dict(color="#F9C74F")
+            ))
+            fig_r.update_layout(
+                template="plotly_dark", height=450,
+                title=f"Dagelijkse Rendementen – {selected_window} (Focus op volatiliteit)"
+            )
             st.plotly_chart(fig_r, use_container_width=True)
 
         st.info(f"Huidige Brent Crude prijs gebruikt in model: **${data['Oil_Close'].iloc[-1]:.2f}**")
@@ -173,16 +214,8 @@ mult3    = st.sidebar.number_input("Terminal multiple",    value=10.0, step=1.0,
 
 # ── DCF hulpfunctie ───────────────────────────────────────────────────────────
 def dcf_intrinsic_value(eps_base, payout_ratio, g_y1_5, g_y6_10, terminal_mult, disc_rate):
-    """
-    DCF op basis van EPS * payout_ratio (= dividend).
-    Jaar 1–5 groeien met g_y1_5, jaar 6–10 met g_y6_10.
-    Terminal value = cashflow jaar 10 * terminal_mult.
-    Alles verdisconteert met disc_rate.
-    """
     if eps_base is None or np.isnan(eps_base):
         return np.nan
-
-    # Gebruik absolute waarde zodat tijdelijk negatieve EPS geen None geeft
     eps_base = abs(eps_base)
     if eps_base == 0:
         return np.nan
@@ -204,29 +237,19 @@ def dcf_intrinsic_value(eps_base, payout_ratio, g_y1_5, g_y6_10, terminal_mult, 
 # ── FIX: Verbeterde get_fundamentals met retry-logica ────────────────────────
 @st.cache_data(ttl=1800)
 def get_fundamentals(ticker_symbol):
-    """
-    Haalt fundamentele data op via yfinance.
-    - 3 pogingen met toenemende vertraging
-    - Betere fallbacks voor payout_ratio, dividendYield en PE
-    - Accepteert ook negatieve EPS (abs() in DCF)
-    """
     for attempt in range(3):
         try:
             time.sleep(random.uniform(0.8 + attempt, 1.8 + attempt))
             t    = yf.Ticker(ticker_symbol)
             info = t.info
 
-            # Prijs ophalen met meerdere fallbacks
             price = (
                 info.get('currentPrice')
                 or info.get('regularMarketPrice')
                 or info.get('previousClose')
             )
-
-            # EPS ophalen
             eps = info.get('trailingEps')
 
-            # Als zowel prijs als EPS None zijn: data is leeg, opnieuw proberen
             if price is None and eps is None:
                 if attempt < 2:
                     time.sleep(3)
@@ -234,31 +257,25 @@ def get_fundamentals(ticker_symbol):
                 else:
                     return None
 
-            # P/E – bereken zelf als niet beschikbaar
             pe = info.get('trailingPE')
             if pe is None and eps and eps != 0 and price:
                 pe = price / eps
 
-            # Dividendrendement
             div_yield_raw = info.get('dividendYield') or 0
             if div_yield_raw == 0:
                 div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
                 if div_rate and price and price > 0:
                     div_yield_raw = div_rate / price
-            # yfinance geeft soms decimaal (0.035), soms al % (3.5)
             div_yield_pct = div_yield_raw if div_yield_raw > 0.5 else div_yield_raw * 100
 
-            # Pay-out ratio met meerdere fallbacks
             payout_ratio = info.get('payoutRatio') or 0
             if payout_ratio == 0 and eps and eps != 0:
                 div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
                 if div_rate:
-                    payout_ratio = abs(div_rate / eps)  # abs() bij negatieve EPS
-            # Fallback: als nog steeds 0, gebruik 50% als conservatieve schatting
+                    payout_ratio = abs(div_rate / eps)
             if payout_ratio == 0 or payout_ratio is None:
                 payout_ratio = 0.5
 
-            # Cap payout ratio op 1.5 (150%) om extreme waarden te vermijden
             payout_ratio = min(payout_ratio, 1.5)
 
             return {
@@ -304,15 +321,12 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
     payout    = fund['payout_ratio']
     eps       = fund['eps']
 
-    # Business return = earnings yield + dividend yield
     business_return = (100 / pe + div_yield) if pe and pe > 0 else None
 
-    # DCF scenario's
     val_norm  = dcf_intrinsic_value(eps, payout, g1_y1_5, g1_y6_10, mult1, discount_rate)
     val_best  = dcf_intrinsic_value(eps, payout, g2_y1_5, g2_y6_10, mult2, discount_rate)
     val_worst = dcf_intrinsic_value(eps, payout, g3_y1_5, g3_y6_10, mult3, discount_rate)
 
-    # Gewogen gemiddelde (elk 1/3)
     vals = [v for v in [val_norm, val_best, val_worst] if v is not None and not np.isnan(v)]
     weighted_avg = np.mean(vals) if vals else None
 
@@ -334,14 +348,14 @@ progress.empty()
 df_result = pd.DataFrame(rows)
 
 
-# ── Styling: kleur op basis van upside/downside t.o.v. huidige prijs ─────────
+# ── Styling ───────────────────────────────────────────────────────────────────
 def color_value(val, price):
     if val is None or price is None:
         return ''
     if val > price * 1.10:
-        return 'background-color: #d4edda; color: #155724'   # groen = ondergewaardeerd
+        return 'background-color: #d4edda; color: #155724'
     elif val < price * 0.90:
-        return 'background-color: #f8d7da; color: #721c24'   # rood = overgewaardeerd
+        return 'background-color: #f8d7da; color: #721c24'
     return ''
 
 
@@ -356,7 +370,7 @@ def style_row(row):
     return styles
 
 
-# ── Debug expander: toon ruwe yfinance data ───────────────────────────────────
+# ── Debug expander ────────────────────────────────────────────────────────────
 with st.expander("🔍 Debug – ruwe yfinance data per ticker"):
     debug_rows = []
     for tkr in TICKERS:
