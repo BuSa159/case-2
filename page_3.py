@@ -193,24 +193,56 @@ def dcf_intrinsic_value(eps_base, payout_ratio, g_y1_5, g_y6_10, terminal_mult, 
 # ── Data ophalen voor alle tickers ───────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def get_fundamentals(ticker_symbol):
+    """
+    Haalt fundamentele data op via yfinance met meerdere fallbacks.
+    - trailingPE: probeer ook zelf te berekenen uit price / trailingEps
+    - dividendYield: probeer ook lastDividendValue / price
+    - payoutRatio: probeer ook dividendRate / (trailingEps) als fallback
+    """
     try:
-        t = yf.Ticker(ticker_symbol)
+        t    = yf.Ticker(ticker_symbol)
         info = t.info
 
-        price        = info.get('currentPrice') or info.get('regularMarketPrice')
-        pe           = info.get('trailingPE')
-        div_yield    = info.get('dividendYield', 0) or 0
-        payout_ratio = info.get('payoutRatio', 0) or 0
-        eps          = info.get('trailingEps')
+        if not info or len(info) < 5:
+            return None
+
+        # Prijs
+        price = (info.get('currentPrice')
+                 or info.get('regularMarketPrice')
+                 or info.get('previousClose'))
+
+        # EPS
+        eps = info.get('trailingEps')
+
+        # P/E – bereken zelf als niet beschikbaar
+        pe = info.get('trailingPE')
+        if pe is None and eps and eps > 0 and price:
+            pe = price / eps
+
+        # Dividendrendement (als decimaal → omzetten naar %)
+        div_yield_raw = info.get('dividendYield') or 0
+        if div_yield_raw == 0:
+            # Fallback: jaarlijks dividend / prijs
+            div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
+            if div_rate and price:
+                div_yield_raw = div_rate / price
+        div_yield_pct = div_yield_raw * 100
+
+        # Pay-out ratio – bereken zelf als niet beschikbaar
+        payout_ratio = info.get('payoutRatio') or 0
+        if payout_ratio == 0 and eps and eps > 0:
+            div_rate = info.get('dividendRate') or info.get('lastDividendValue') or 0
+            if div_rate:
+                payout_ratio = div_rate / eps
 
         return {
             'price':        price,
             'pe':           pe,
-            'div_yield':    div_yield * 100 if div_yield else 0,
+            'div_yield':    div_yield_pct,
             'payout_ratio': payout_ratio,
             'eps':          eps,
         }
-    except Exception:
+    except Exception as e:
         return None
 
 
@@ -228,10 +260,10 @@ for i, (ticker, name) in enumerate(TICKERS.items()):
             'Ticker': ticker, 'Naam': name,
             'K/W': None, 'Div. Rendement (%)': None,
             'Business Return (%)': None,
-            'Waardering Normaal': None,
-            'Waardering Best': None,
-            'Waardering Worst': None,
-            'Gewogen Gem. Waarde': None,
+            'Waardering Normaal ($)': None,
+            'Waardering Best ($)': None,
+            'Waardering Worst ($)': None,
+            'Gewogen Gem. ($)': None,
         })
         continue
 
@@ -302,6 +334,26 @@ def style_row(row):
             idx = row.index.get_loc(col)
             styles[idx] = color_value(row[col], price)
     return styles
+
+# ── Debug expander: toon ruwe yfinance data ──────────────────────────────────
+with st.expander("🔍 Debug – ruwe yfinance data per ticker"):
+    debug_rows = []
+    for tkr in TICKERS:
+        try:
+            raw = yf.Ticker(tkr).info
+            debug_rows.append({
+                'Ticker':        tkr,
+                'currentPrice':  raw.get('currentPrice'),
+                'trailingPE':    raw.get('trailingPE'),
+                'trailingEps':   raw.get('trailingEps'),
+                'dividendYield': raw.get('dividendYield'),
+                'dividendRate':  raw.get('dividendRate'),
+                'payoutRatio':   raw.get('payoutRatio'),
+                'Keys (#)':      len(raw),
+            })
+        except Exception as ex:
+            debug_rows.append({'Ticker': tkr, 'Fout': str(ex)})
+    st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
 
 st.subheader("Overzichtstabel – Intrinsieke Waarde (DCF)")
 
